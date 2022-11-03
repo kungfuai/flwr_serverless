@@ -20,8 +20,8 @@ from flwr.common import (
     parameters_to_ndarrays,
 )
 from flwr.server.client_proxy import ClientProxy
-from flwr.server.grpc_server.grpc_client_proxy import GrpcClientProxy
-from flwr.server.strategy import FedAvg
+from flwr.server.strategy import FedAvg, FedAdam
+from flwr.client.numpy_client import NumPyClient
 
 
 def split_training_data_into_paritions(x_train, y_train):
@@ -51,54 +51,76 @@ def test_mnist_training_clients_on_partitioned_data():
     x_train = x_train.astype(np.float32) / 255
     x_test = x_test.astype(np.float32) / 255
 
-    model_client1 = CreateMnistModel().run()
-    model_client2 = CreateMnistModel().run()
+    model_standalone1 = CreateMnistModel().run()
+    model_standalone2 = CreateMnistModel().run()
 
     x_train_partition_1, y_train_partition_1, x_train_partition_2, y_train_partition_2 = split_training_data_into_paritions(x_train, y_train)
 
-    model_client1.fit(x_train_partition_1, y_train_partition_1, epochs=3, batch_size=32, steps_per_epoch=10)
-    model_client2.fit(x_train_partition_2, y_train_partition_2, epochs=3, batch_size=32, steps_per_epoch=10)
-    _, accuracy_client1 = model_client1.evaluate(x_train, y_train, batch_size=32, steps=10)
-    _, accuracy_client2 = model_client2.evaluate(x_train, y_train, batch_size=32, steps=10)
-    assert accuracy_client1 < 0.6
-    assert accuracy_client2 < 0.6
+    model_standalone1.fit(x_train_partition_1, y_train_partition_1, epochs=3, batch_size=32, steps_per_epoch=10)
+    model_standalone2.fit(x_train_partition_2, y_train_partition_2, epochs=3, batch_size=32, steps_per_epoch=10)
+    _, accuracy_standalone1 = model_standalone1.evaluate(x_train, y_train, batch_size=32, steps=10)
+    _, accuracy_standalone2 = model_standalone2.evaluate(x_train, y_train, batch_size=32, steps=10)
+    assert accuracy_standalone1 < 0.55
+    assert accuracy_standalone2 < 0.55
 
     # federated learning
+    model_client1 = CreateMnistModel().run()
+    model_client2 = CreateMnistModel().run()
 
-    # param_0: Parameters = ndarrays_to_parameters(
-    #     [model_client1.get_weights()]
-    # )
-    param_0: Parameters = fl.common.weights_to_parameters(model_client1.get_weights())
-    param_1: Parameters = fl.common.weights_to_parameters(model_client2.get_weights())
-
+    # strategy = FedAvg()
+    tmp_model = CreateMnistModel().run()
+    strategy = FedAdam(initial_parameters=ndarrays_to_parameters(tmp_model.get_weights()), eta=0.01, eta_l=0.001)
     client_0 = None
     client_1 = None
-    results: List[Tuple[ClientProxy, FitRes]] = [
-        (
-            client_0,
-            FitRes(
-                status=Status(code=Code.OK, message="Success"),
-                parameters=param_0,
-                num_examples=5,
-                metrics={},
-            ),
-        ),
-        (
-            client_1,
-            FitRes(
-                status=Status(code=Code.OK, message="Success"),
-                parameters=param_1,
-                num_examples=5,
-                metrics={},
-            ),
-        ),
-    ]
 
-    strategy = FedAvg()
-    actual_aggregated, _ = strategy.aggregate_fit(
-        server_round=1, results=results, failures=[]
-    )
-    # TODO: turn it back to keras.Model.
+    num_federated_rounds = 5
+    num_epochs_per_round = 1
+    for i_round in range(num_federated_rounds):
+        print("\n============ Round", i_round)
+        # TODO: bug! dataloader starts from the beginning of the dataset! We should use a generator
+        model_client1.fit(x_train_partition_1, y_train_partition_1, epochs=num_epochs_per_round, batch_size=32, steps_per_epoch=10)
+        model_client2.fit(x_train_partition_2, y_train_partition_2, epochs=num_epochs_per_round, batch_size=32, steps_per_epoch=10)
+        num_examples = 32 * 10
+
+        param_0: Parameters = ndarrays_to_parameters(model_client1.get_weights())
+        param_1: Parameters = ndarrays_to_parameters(model_client2.get_weights())
+
+        # Aggregation using the strategy.
+        results: List[Tuple[ClientProxy, FitRes]] = [
+            (
+                client_0,
+                FitRes(
+                    status=Status(code=Code.OK, message="Success"),
+                    parameters=param_0,
+                    num_examples=num_examples,
+                    metrics={},
+                ),
+            ),
+            (
+                client_1,
+                FitRes(
+                    status=Status(code=Code.OK, message="Success"),
+                    parameters=param_1,
+                    num_examples=num_examples,
+                    metrics={},
+                ),
+            ),
+        ]
+        
+        aggregated_parameters, _ = strategy.aggregate_fit(
+            server_round=i_round+1, results=results, failures=[]
+        )
+        # turn actual_aggregated back to keras.Model.
+        aggregated_parameters_numpy: NDArrays = parameters_to_ndarrays(aggregated_parameters)
+        # Update client model weights using the aggregated parameters.
+        model_client1.set_weights(aggregated_parameters_numpy)
+        model_client2.set_weights(aggregated_parameters_numpy)
+
+    
+    _, accuracy_federated = model_client1.evaluate(x_train, y_train, batch_size=32, steps=10)
+    assert accuracy_federated > accuracy_standalone1
+    assert accuracy_federated > accuracy_standalone2
+    # assert accuracy_federated > 0.55 # flaky test
 
 
 def test_mnist_training_standalone():
