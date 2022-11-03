@@ -20,7 +20,7 @@ from flwr.common import (
     parameters_to_ndarrays,
 )
 from flwr.server.client_proxy import ClientProxy
-from flwr.server.strategy import FedAvg, FedAdam
+from flwr.server.strategy import FedAvg, FedAdam, FedAvgM
 from flwr.client.numpy_client import NumPyClient
 
 
@@ -46,6 +46,8 @@ def test_mnist_training_clients_on_partitioned_data():
     # print(y_train.shape) # (60000,)
     # Normalize
     image_size = x_train.shape[1]
+    batch_size = 32
+    steps_per_epoch = 10
     x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
     x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
     x_train = x_train.astype(np.float32) / 255
@@ -56,10 +58,24 @@ def test_mnist_training_clients_on_partitioned_data():
 
     x_train_partition_1, y_train_partition_1, x_train_partition_2, y_train_partition_2 = split_training_data_into_paritions(x_train, y_train)
 
-    model_standalone1.fit(x_train_partition_1, y_train_partition_1, epochs=3, batch_size=32, steps_per_epoch=10)
-    model_standalone2.fit(x_train_partition_2, y_train_partition_2, epochs=3, batch_size=32, steps_per_epoch=10)
-    _, accuracy_standalone1 = model_standalone1.evaluate(x_train, y_train, batch_size=32, steps=10)
-    _, accuracy_standalone2 = model_standalone2.evaluate(x_train, y_train, batch_size=32, steps=10)
+    # Using generator for its ability to resume. This is important for federated learning, otherwise in each federated round,
+    # the cursor starts from the beginning every time.
+    def train_generator1(batch_size):
+        while True:
+            for i in range(0, len(x_train_partition_1), batch_size):
+                yield x_train_partition_1[i:i+batch_size], y_train_partition_1[i:i+batch_size]
+    
+    def train_generator2(batch_size):
+        while True:
+            for i in range(0, len(x_train_partition_2), batch_size):
+                yield x_train_partition_2[i:i+batch_size], y_train_partition_2[i:i+batch_size]
+
+    train_loader_standalone1 = train_generator1(batch_size)
+    train_loader_standalone2 = train_generator2(batch_size)
+    model_standalone1.fit(train_loader_standalone1, epochs=3, steps_per_epoch=steps_per_epoch)
+    model_standalone2.fit(train_loader_standalone2, epochs=3, steps_per_epoch=steps_per_epoch)
+    _, accuracy_standalone1 = model_standalone1.evaluate(x_train, y_train, batch_size=batch_size, steps=10)
+    _, accuracy_standalone2 = model_standalone2.evaluate(x_train, y_train, batch_size=batch_size, steps=10)
     assert accuracy_standalone1 < 0.55
     assert accuracy_standalone2 < 0.55
 
@@ -68,19 +84,23 @@ def test_mnist_training_clients_on_partitioned_data():
     model_client2 = CreateMnistModel().run()
 
     # strategy = FedAvg()
-    tmp_model = CreateMnistModel().run()
-    strategy = FedAdam(initial_parameters=ndarrays_to_parameters(tmp_model.get_weights()), eta=0.01, eta_l=0.001)
+    strategy = FedAvgM()
+    # FedAdam does not work well in this setting.
+    # tmp_model = CreateMnistModel().run()
+    # strategy = FedAdam(initial_parameters=ndarrays_to_parameters(tmp_model.get_weights()), eta=1e-1)
     client_0 = None
     client_1 = None
 
-    num_federated_rounds = 5
+    num_federated_rounds = 3
     num_epochs_per_round = 1
+    train_loader_client1 = train_generator1(batch_size=batch_size)
+    train_loader_client2 = train_generator2(batch_size=batch_size)
     for i_round in range(num_federated_rounds):
         print("\n============ Round", i_round)
         # TODO: bug! dataloader starts from the beginning of the dataset! We should use a generator
-        model_client1.fit(x_train_partition_1, y_train_partition_1, epochs=num_epochs_per_round, batch_size=32, steps_per_epoch=10)
-        model_client2.fit(x_train_partition_2, y_train_partition_2, epochs=num_epochs_per_round, batch_size=32, steps_per_epoch=10)
-        num_examples = 32 * 10
+        model_client1.fit(train_loader_client1, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
+        model_client2.fit(train_loader_client2, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
+        num_examples = batch_size * 10
 
         param_0: Parameters = ndarrays_to_parameters(model_client1.get_weights())
         param_1: Parameters = ndarrays_to_parameters(model_client2.get_weights())
@@ -120,7 +140,7 @@ def test_mnist_training_clients_on_partitioned_data():
     _, accuracy_federated = model_client1.evaluate(x_train, y_train, batch_size=32, steps=10)
     assert accuracy_federated > accuracy_standalone1
     assert accuracy_federated > accuracy_standalone2
-    # assert accuracy_federated > 0.55 # flaky test
+    assert accuracy_federated > 0.6 # flaky test
 
 
 def test_mnist_training_standalone():
@@ -142,20 +162,6 @@ def test_mnist_training_standalone():
     loss, accuracy = model.evaluate(x_train, y_train, batch_size=32, steps=10)
     # print(history[-1])
     assert accuracy > 0.6
-
-    # class MnistClient(fl.client.NumPyClient):
-    #     def get_parameters(self):
-    #         return model.get_weights()
-    #     def fit(self, parameters, config):
-    #         model.set_weights(parameters)
-    #         model.fit(x_train, y_train, epochs=10, batch_size=32, steps_per_epoch=3)
-    #         return model.get_weights(), len(x_train), {}
-    #     def evaluate(self, parameters, config):
-    #         model.set_weights(parameters)
-    #         loss, accuracy = model.evaluate(x_test, y_test)
-    #         return loss, len(x_test), {“accuracy”: accuracy}
-    # fl.client.start_numpy_client(“[::]:8080", client=MnistClient())
-
 
 
 @pytest.mark.skip(reason="Not implemented yet")
