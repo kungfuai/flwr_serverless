@@ -26,8 +26,10 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         # use the P2PStrategy to update the model.
         # see https://github.com/adap/flower/blob/main/src/py/flwr/server/strategy/fedavg.py
         self_parameters = self.model_to_flwr_parameters(self.model)
-        fed_parameters = self.strategy.get_current_parameters()
-        new_parameters = self.strategy.aggregated_fit([fed_parameters, new_parameters])
+        new_parameters = self.strategy.update_parameters(new_parameters)
+        # under the hood, this happens:
+        # fed_parameters = self.strategy.get_current_parameters()
+        # new_parameters = self.strategy.aggregated_fit([fed_parameters, new_parameters])
         self.model = self.update_model_with_flwr_parameters(self.model, new_parameters)
 
 ```
