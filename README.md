@@ -9,11 +9,11 @@ A Flower ([flwr](https://flower.dev/)) extension, to enable peer-to-peer federat
 
 `flwr_p2p` implements peer2peer variations of `flwr.server.strategy.Strategy`. 
 
-```
+```python
 class FlwrFederatedCallback(keras.callbacks.Callback):
     
-    def __init__(self, strategy: flwr_p2p.P2PStrategy, **kwargs):
-        self.strategy = strategy
+    def __init__(self, node: flwr_p2p.Node, **kwargs):
+        self.node = node
         ...
 
     def model_to_flwr_parameters(self, model: keras.Model):
@@ -25,11 +25,11 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
     def on_epoch_end(self, ...):
         # use the P2PStrategy to update the model.
         # see https://github.com/adap/flower/blob/main/src/py/flwr/server/strategy/fedavg.py
-        self_parameters = self.model_to_flwr_parameters(self.model)
-        new_parameters = self.strategy.update_parameters(new_parameters)
+        current_parameters = self.model_to_flwr_parameters(self.model)
+        new_parameters = self.node.update_parameters(current_parameters)
         # under the hood, this happens:
-        # fed_parameters = self.strategy.get_current_parameters()
-        # new_parameters = self.strategy.aggregated_fit([fed_parameters, new_parameters])
+        # fed_parameters = self.node.get_current_parameters()
+        # new_parameters = self.node.aggregated_fit([fed_parameters, new_parameters])
         self.model = self.update_model_with_flwr_parameters(self.model, new_parameters)
 
 ```
