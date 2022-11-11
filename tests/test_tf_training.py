@@ -21,8 +21,10 @@ from flwr.common import (
 )
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAvgM
-from flwr.client.numpy_client import NumPyClient
 from uuid import uuid4
+from src.federated_node.async_federated_node import AsyncFederatedNode
+from src.storage_backend.in_memory_storage_backend import InMemoryStorageBackend
+
 
 def split_training_data_into_paritions(x_train, y_train):
     # partion 1: classes 0-4
@@ -217,139 +219,15 @@ def test_mnist_training_using_federated_nodes():
     # FedAdam does not work well in this setting.
     # tmp_model = CreateMnistModel().run()
     # strategy = FedAdam(initial_parameters=ndarrays_to_parameters(tmp_model.get_weights()), eta=1e-1)
-    client_0 = None
-    client_1 = None
 
     num_federated_rounds = standalone_epochs
     num_epochs_per_round = 1
     train_loader_client1 = train_generator1(batch_size=batch_size)
     train_loader_client2 = train_generator2(batch_size=batch_size)
 
-    model_store = {
-        # "client1/epoch1": parameters_1,
-        # "client2/epoch1": parameters_2,
-        # "latest_federated": parameters_latest,
-    }
-    """
-    Synchronous version:
-
-    8 am:
-    client 1 (faster client) sends params1_1
-    server has no params yet, so client 1 is told to wait
-    server keeps params1_1
-
-    9 am:
-    client 2 (slower) sends params2_1 (client 1 is waiting from 8 am to 9 am)
-    server aggregated params1_1 and params2_1, and sends back to client 1 and 2
-    both client 1 and client 2 updates their local models, and resume training
-
-    10 am:
-    client 1: sends params1_2
-    ...
-
-    Asynchronous version (client does not wait for the server to get new aggregated weights):
-
-    8 am:
-    client 1 sends params1_1
-    server returns params1_1, and sets params_federated_0 = params1_1
-    client 1 keeps training with params1_1 for 2 hours
-
-    9 am:
-    client 2 sends params2_1
-    server aggregates params1_1 and params2_1 into params_federated_1
-    server returns aggregated params_federated_1
-    client 2 updates its params to params_federated_1 and keeps training
-    (but client 1 is busy doing its own training now, so it is not updated)
-
-    10 am:
-    client 1 sends params1_2
-    server aggregates params_federated_1 and params1_2 into params_federated_2
-    server returns aggregated params_federated_2
-    client 1 updates its params to params_federated_2 and keeps training
-
-    """
-
-    class Node:
-        def _should_wait(self):
-            return False
-        
-        def update_parameters(self, current_parameters):
-            pass
-
-    class SynchronousNode:
-        def __init__(self, num_clients=2):
-            self.model_store = {}
-            self.num_clients = num_clients
-
-        def _should_wait(self):
-            return len(self.model_store) == self.num_clients
-        
-        def update_parameters(self, current_parameters):
-            pass
-
-    class AsynchronousNode:
-        def __init__(self, storage_backend = None):
-            self.node_id = uuid4()
-            self.counter = 0
-            self.model_store = {
-                "last_seen_node_id": None,
-                "latest_federated": None,
-            }
-        
-        def _get_latest_federated_model(self) -> Parameters:
-            return self.model_store.get("latest_federated", None)
-        
-        def _aggregate(self, local_parameters: Parameters, federated_parameters: Parameters, num_examples: int = None, federated_num_examples: int = None) -> Parameters:
-            # if num_examples is None or federated_num_examples is None:
-            #     num_examples = 1
-            #     federated_num_examples = 1
-            num_examples = 1
-            federated_num_examples = 1
-
-            # Aggregation using the strategy.
-            results: List[Tuple[ClientProxy, FitRes]] = [
-                (
-                    client_0,
-                    FitRes(
-                        status=Status(code=Code.OK, message="Success"),
-                        parameters=local_parameters,
-                        num_examples=num_examples,
-                        metrics={},
-                    ),
-                ),
-                (
-                    client_1,
-                    FitRes(
-                        status=Status(code=Code.OK, message="Success"),
-                        parameters=federated_parameters,
-                        num_examples=federated_num_examples,
-                        metrics={},
-                    ),
-                ),
-            ]
-            
-            aggregated_parameters, _ = strategy.aggregate_fit(
-                server_round=self.counter+1, results=results, failures=[]
-            )
-            self.counter += 1
-            return aggregated_parameters
-
-        def update_parameters(self, local_parameters, num_examples: int = None):
-            latest_federated_parameters = self._get_latest_federated_model()
-            if latest_federated_parameters is None:
-                self.model_store["latest_federated"] = local_parameters
-                return None
-            else:
-                aggregated_parameters = self._aggregate(local_parameters, latest_federated_parameters)
-                # latest_federated_parameters = aggregated_parameters
-                latest_federated_parameters = local_parameters  # this is better!
-                self.model_store["latest_federated"] = latest_federated_parameters
-                return aggregated_parameters
-
-
-    node1 = AsynchronousNode()
-    node2 = node1
-    # node2 = AsynchronousNode()
+    storage_backend = InMemoryStorageBackend()
+    node1 = AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+    node2 = AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
     for i_round in range(num_federated_rounds):
         print("\n============ Round", i_round)
         model_client1.fit(train_loader_client1, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
