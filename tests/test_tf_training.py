@@ -7,7 +7,6 @@ from tensorflow.keras.models import Model
 from tensorflow import keras
 
 from typing import List, Tuple
-from numpy import array, float32
 
 import flwr as fl
 from flwr.common import (
@@ -24,6 +23,7 @@ from flwr.server.strategy import FedAvg, FedAdam, FedAvgM
 from uuid import uuid4
 from src.federated_node.async_federated_node import AsyncFederatedNode
 from src.storage_backend.in_memory_storage_backend import InMemoryStorageBackend
+from src.keras.federated_learning_callback import FlwrFederatedCallback
 
 
 def split_training_data_into_paritions(x_train, y_train):
@@ -254,6 +254,98 @@ def test_mnist_training_using_federated_nodes():
     assert accuracy_federated > accuracy_standalone2
     assert accuracy_federated > 0.6 # flaky test
 
+
+def test_mnist_federated_callback():
+    # epochs = standalone_epochs = 3  # does not work
+    epochs = standalone_epochs = 6  # works
+
+    (x_train, y_train), (x_test, y_test) = mnist.load_data()
+    # x_train.shape: (60000, 28, 28)
+    # print(y_train.shape) # (60000,)
+    # Normalize
+    image_size = x_train.shape[1]
+    batch_size = 32
+    steps_per_epoch = 8
+    
+    x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
+    x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
+    x_train = x_train.astype(np.float32) / 255
+    x_test = x_test.astype(np.float32) / 255
+
+    model_standalone1 = CreateMnistModel().run()
+    model_standalone2 = CreateMnistModel().run()
+
+    x_train_partition_1, y_train_partition_1, x_train_partition_2, y_train_partition_2 = split_training_data_into_paritions(x_train, y_train)
+
+    # Using generator for its ability to resume. This is important for federated learning, otherwise in each federated round,
+    # the cursor starts from the beginning every time.
+    def train_generator1(batch_size):
+        while True:
+            for i in range(0, len(x_train_partition_1), batch_size):
+                yield x_train_partition_1[i:i+batch_size], y_train_partition_1[i:i+batch_size]
+    
+    def train_generator2(batch_size):
+        while True:
+            for i in range(0, len(x_train_partition_2), batch_size):
+                yield x_train_partition_2[i:i+batch_size], y_train_partition_2[i:i+batch_size]
+
+    train_loader_standalone1 = train_generator1(batch_size)
+    train_loader_standalone2 = train_generator2(batch_size)
+    model_standalone1.fit(train_loader_standalone1, epochs=epochs, steps_per_epoch=steps_per_epoch)
+    model_standalone2.fit(train_loader_standalone2, epochs=epochs, steps_per_epoch=steps_per_epoch)
+    print("Evaluating on the combined test set:")
+    _, accuracy_standalone1 = model_standalone1.evaluate(x_train, y_train, batch_size=batch_size, steps=10)
+    _, accuracy_standalone2 = model_standalone2.evaluate(x_train, y_train, batch_size=batch_size, steps=10)
+    assert accuracy_standalone1 < 0.55
+    assert accuracy_standalone2 < 0.55
+
+    # federated learning
+    strategy = FedAvg()
+    storage_backend = InMemoryStorageBackend()
+    node1 = AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+    node2 = AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+    callbacks_client1 = [FlwrFederatedCallback(node=node1)]
+    callbacks_client2 = [FlwrFederatedCallback(node=node2)]
+    model_client1 = CreateMnistModel().run()
+    model_client2 = CreateMnistModel().run()
+
+    num_federated_rounds = standalone_epochs
+    num_epochs_per_round = 1
+    train_loader_client1 = train_generator1(batch_size=batch_size)
+    train_loader_client2 = train_generator2(batch_size=batch_size)
+
+    for i_round in range(num_federated_rounds):
+        print("\n============ Round", i_round)
+        model_client1.fit(
+            train_loader_client1,
+            epochs=num_epochs_per_round,
+            steps_per_epoch=steps_per_epoch,
+            callbacks=callbacks_client1,
+        )
+        # num_examples = batch_size * 10
+        # param_1: Parameters = ndarrays_to_parameters(model_client1.get_weights())
+        # updated_param_1 = node1.update_parameters(param_1, num_examples=num_examples)
+        # if updated_param_1 is not None:
+        #     model_client1.set_weights(parameters_to_ndarrays(updated_param_1))
+        # else:
+        #     print("node1 is waiting for other nodes to send their parameters")
+
+        model_client2.fit(
+            train_loader_client2, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch,
+            callbacks=callbacks_client2,)
+        # num_examples = batch_size * 10
+        # param_2: Parameters = ndarrays_to_parameters(model_client2.get_weights())
+        # updated_param_2 = node2.update_parameters(param_2, num_examples=num_examples)
+        # if updated_param_2 is not None:
+        #     model_client2.set_weights(parameters_to_ndarrays(updated_param_2))
+        # else:
+        #     print("node2 is waiting for other nodes to send their parameters")
+
+    print("Evaluating on the combined test set:")
+    _, accuracy_federated = model_client1.evaluate(x_train, y_train, batch_size=32, steps=10)
+    assert accuracy_federated > accuracy_standalone1
+    assert accuracy_federated > accuracy_standalone2
+    assert accuracy_federated > 0.6 # flaky test
 
 class CreateMnistModel:
     def __init__(self):
