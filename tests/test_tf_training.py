@@ -165,13 +165,17 @@ def test_mnist_training_standalone():
 
 
 def test_mnist_training_using_federated_nodes():
+    # epochs = standalone_epochs = 3  # does not work
+    epochs = standalone_epochs = 6  # works
+
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     # x_train.shape: (60000, 28, 28)
     # print(y_train.shape) # (60000,)
     # Normalize
     image_size = x_train.shape[1]
     batch_size = 32
-    steps_per_epoch = 10
+    steps_per_epoch = 8
+    
     x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
     x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
     x_train = x_train.astype(np.float32) / 255
@@ -196,8 +200,9 @@ def test_mnist_training_using_federated_nodes():
 
     train_loader_standalone1 = train_generator1(batch_size)
     train_loader_standalone2 = train_generator2(batch_size)
-    model_standalone1.fit(train_loader_standalone1, epochs=3, steps_per_epoch=steps_per_epoch)
-    model_standalone2.fit(train_loader_standalone2, epochs=3, steps_per_epoch=steps_per_epoch)
+    model_standalone1.fit(train_loader_standalone1, epochs=epochs, steps_per_epoch=steps_per_epoch)
+    model_standalone2.fit(train_loader_standalone2, epochs=epochs, steps_per_epoch=steps_per_epoch)
+    print("Evaluating on the combined test set:")
     _, accuracy_standalone1 = model_standalone1.evaluate(x_train, y_train, batch_size=batch_size, steps=10)
     _, accuracy_standalone2 = model_standalone2.evaluate(x_train, y_train, batch_size=batch_size, steps=10)
     assert accuracy_standalone1 < 0.55
@@ -207,15 +212,15 @@ def test_mnist_training_using_federated_nodes():
     model_client1 = CreateMnistModel().run()
     model_client2 = CreateMnistModel().run()
 
-    # strategy = FedAvg()
-    strategy = FedAvgM()
+    strategy = FedAvg()
+    # strategy = FedAvgM()
     # FedAdam does not work well in this setting.
     # tmp_model = CreateMnistModel().run()
     # strategy = FedAdam(initial_parameters=ndarrays_to_parameters(tmp_model.get_weights()), eta=1e-1)
     client_0 = None
     client_1 = None
 
-    num_federated_rounds = 3
+    num_federated_rounds = standalone_epochs
     num_epochs_per_round = 1
     train_loader_client1 = train_generator1(batch_size=batch_size)
     train_loader_client2 = train_generator2(batch_size=batch_size)
@@ -295,9 +300,11 @@ def test_mnist_training_using_federated_nodes():
             return self.model_store.get("latest_federated", None)
         
         def _aggregate(self, local_parameters: Parameters, federated_parameters: Parameters, num_examples: int = None, federated_num_examples: int = None) -> Parameters:
-            if num_examples is None or federated_num_examples is None:
-                num_examples = 1
-                federated_num_examples = 1
+            # if num_examples is None or federated_num_examples is None:
+            #     num_examples = 1
+            #     federated_num_examples = 1
+            num_examples = 1
+            federated_num_examples = 1
 
             # Aggregation using the strategy.
             results: List[Tuple[ClientProxy, FitRes]] = [
@@ -330,25 +337,29 @@ def test_mnist_training_using_federated_nodes():
         def update_parameters(self, local_parameters, num_examples: int = None):
             latest_federated_parameters = self._get_latest_federated_model()
             if latest_federated_parameters is None:
+                self.model_store["latest_federated"] = local_parameters
                 return None
             else:
                 aggregated_parameters = self._aggregate(local_parameters, latest_federated_parameters)
-                latest_federated_parameters = aggregated_parameters
+                # latest_federated_parameters = aggregated_parameters
+                latest_federated_parameters = local_parameters  # this is better!
                 self.model_store["latest_federated"] = latest_federated_parameters
-                return latest_federated_parameters
+                return aggregated_parameters
 
 
     node1 = AsynchronousNode()
-    node2 = AsynchronousNode()
+    node2 = node1
+    # node2 = AsynchronousNode()
     for i_round in range(num_federated_rounds):
         print("\n============ Round", i_round)
-        # TODO: bug! dataloader starts from the beginning of the dataset! We should use a generator
         model_client1.fit(train_loader_client1, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
         num_examples = batch_size * 10
         param_1: Parameters = ndarrays_to_parameters(model_client1.get_weights())
         updated_param_1 = node1.update_parameters(param_1, num_examples=num_examples)
         if updated_param_1 is not None:
             model_client1.set_weights(parameters_to_ndarrays(updated_param_1))
+        else:
+            print("node1 is waiting for other nodes to send their parameters")
 
         model_client2.fit(train_loader_client2, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
         num_examples = batch_size * 10
@@ -356,8 +367,10 @@ def test_mnist_training_using_federated_nodes():
         updated_param_2 = node2.update_parameters(param_2, num_examples=num_examples)
         if updated_param_2 is not None:
             model_client2.set_weights(parameters_to_ndarrays(updated_param_2))
+        else:
+            print("node2 is waiting for other nodes to send their parameters")
 
-    
+    print("Evaluating on the combined test set:")
     _, accuracy_federated = model_client1.evaluate(x_train, y_train, batch_size=32, steps=10)
     assert accuracy_federated > accuracy_standalone1
     assert accuracy_federated > accuracy_standalone2
