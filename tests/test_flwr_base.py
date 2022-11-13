@@ -1,5 +1,4 @@
 from typing import List, Tuple
-from unittest.mock import MagicMock
 
 from numpy import array, float32
 
@@ -13,7 +12,6 @@ from flwr.common import (
     parameters_to_ndarrays,
 )
 from flwr.server.client_proxy import ClientProxy
-from flwr.server.grpc_server.grpc_client_proxy import GrpcClientProxy
 
 from flwr.server.strategy import FedAdagrad
 

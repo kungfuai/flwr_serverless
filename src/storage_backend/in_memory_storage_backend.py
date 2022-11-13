@@ -10,3 +10,9 @@ class InMemoryStorageBackend:
 
     def __setitem__(self, key, value):
         self.model_store[key] = value
+    
+    def __len__(self):
+        return len(self.model_store)
+    
+    def items(self):
+        return self.model_store.items()

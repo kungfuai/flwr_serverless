@@ -1,0 +1,3 @@
+- keras: scale to 3+ clients
+- test real concurrency
+- s3 storage backend

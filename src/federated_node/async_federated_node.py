@@ -1,5 +1,6 @@
 from typing import List, Tuple
 from uuid import uuid4
+import time
 from flwr.common import (
     Code,
     FitRes,
@@ -52,11 +53,12 @@ class AsyncFederatedNode:
 
     """
     def __init__(self, storage_backend, strategy):
-        self.node_id = uuid4()
+        self.node_id = str(uuid4())
         self.counter = 0
         self.strategy = strategy
         self.model_store = storage_backend
-        self.model_store["latest_federated"] = None
+        self.seen_models = set()
+        # self.model_store["latest_federated"] = None
         # self.model_store = {
         #     "last_seen_node_id": None,
         #     "latest_federated": None,
@@ -65,35 +67,24 @@ class AsyncFederatedNode:
     def _get_latest_federated_model(self) -> Parameters:
         return self.model_store.get("latest_federated", None)
     
-    def _aggregate(self, local_parameters: Parameters, federated_parameters: Parameters, num_examples: int = None, federated_num_examples: int = None) -> Parameters:
+    def _aggregate(self, parameters_list: List[Parameters], num_examples_list: List[int]=None) -> Parameters:
         # if num_examples is None or federated_num_examples is None:
         #     num_examples = 1
         #     federated_num_examples = 1
         # TODO: allow different num_examples
-        num_examples = 1
-        federated_num_examples = 1
+        num_examples_list = [1] * len(parameters_list)
 
         # Aggregation using the strategy.
-        client_0 = client_1 = None
         results: List[Tuple[ClientProxy, FitRes]] = [
             (
-                client_0,
+                None,
                 FitRes(
                     status=Status(code=Code.OK, message="Success"),
-                    parameters=local_parameters,
+                    parameters=p,
                     num_examples=num_examples,
                     metrics={},
                 ),
-            ),
-            (
-                client_1,
-                FitRes(
-                    status=Status(code=Code.OK, message="Success"),
-                    parameters=federated_parameters,
-                    num_examples=federated_num_examples,
-                    metrics={},
-                ),
-            ),
+            ) for p, num_examples in zip(parameters_list, num_examples_list)
         ]
         
         aggregated_parameters, _ = self.strategy.aggregate_fit(
@@ -101,19 +92,43 @@ class AsyncFederatedNode:
         )
         self.counter += 1
         return aggregated_parameters
+    
+    def _get_parameters_from_other_nodes(self) -> List[Parameters]:
+        parameters = []
+        for key, value in self.model_store.items():
+            if isinstance(value, dict) and "parameters" in value:
+                if key != self.node_id:
+                    model_hash = value["model_hash"]
+                    if model_hash not in self.seen_models:
+                        self.seen_models.add(model_hash)
+                        parameters.append(value["parameters"])
+        return parameters
 
-    def update_parameters(self, local_parameters, num_examples: int = None):
-        latest_federated_parameters = self._get_latest_federated_model()
-        if latest_federated_parameters is None:
-            self.model_store["latest_federated"] = local_parameters
-            return None
+    def update_parameters(self, local_parameters: Parameters, num_examples: int = None):
+        self.model_store[self.node_id] = dict(parameters=local_parameters, model_hash=self.node_id + str(time.time()))
+        # print(f"\n{len(self.model_store)} nodes\n")
+        parameters_from_other_nodes = self._get_parameters_from_other_nodes()
+        if len(parameters_from_other_nodes) == 0:
+            # No other nodes, so just return the local parameters
+            return local_parameters
         else:
-            aggregated_parameters = self._aggregate(local_parameters, latest_federated_parameters)
-            # Optional 1: x_t = avg(x_{t-1}, self_parameters)
-            # latest_federated_parameters = aggregated_parameters  # this is worse!
-            # Optional 2: avg(self_parameters, other_parameters1, other_parameters2, ...)
-            latest_federated_parameters = local_parameters  # this is better!
-            # TODO: this is for 2 clients only. Test the 3 client case.
-            #   For more than 2 clients, we need to store local parameters for each client
-            self.model_store["latest_federated"] = latest_federated_parameters
+            # Aggregate the parameters from other nodes
+            parameters_from_self_and_other_nodes = parameters_from_other_nodes + [local_parameters]
+            aggregated_parameters = self._aggregate(parameters_from_self_and_other_nodes)
+            # self.model_store["latest_federated"] = aggregated_parameters
             return aggregated_parameters
+        # latest_federated_parameters = self._get_latest_federated_model()
+        # if latest_federated_parameters is None:
+        #     self.model_store["latest_federated"] = local_parameters
+        #     return None
+        # else:
+        #     aggregated_parameters = self._aggregate(local_parameters, latest_federated_parameters)
+        #     # Optional 1: x_t = avg(x_{t-1}, self_parameters)
+        #     # latest_federated_parameters = aggregated_parameters  # this is worse!
+        #     # Optional 2: avg(self_parameters, other_parameters1, other_parameters2, ...)
+        #     latest_federated_parameters = local_parameters  # this is better!
+        #     # TODO: this is for 2 clients only. Test the 3 client case.
+        #     #   For more than 2 clients, we need to store local parameters for each client
+        #     self.model_store["latest_federated"] = latest_federated_parameters
+        #     self.model_store[self.node_id] = local_parameters
+        #     return aggregated_parameters
