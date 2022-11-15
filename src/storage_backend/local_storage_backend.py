@@ -1,5 +1,6 @@
 from pathlib import Path
 import pickle
+import time
 from flwr.common import Parameters
 
 
@@ -8,7 +9,7 @@ class LocalStorageBackend:
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.suffix = ".params"
-    
+
     def get(self, key, default=None):
         filepath = self.directory / (key + self.suffix)
         if filepath.exists():
@@ -24,11 +25,21 @@ class LocalStorageBackend:
         filepath = self.directory / (key + self.suffix)
         with open(filepath, "wb") as f:
             pickle.dump(value, f)
-    
+
     def __len__(self):
-        return len(self.directory.glob(f"*{self.suffix}"))
-    
+        return len(list(self.directory.glob(f"*{self.suffix}")))
+
     def items(self):
         for filepath in self.directory.glob(f"*{self.suffix}"):
-            with open(filepath, "rb") as f:
-                yield filepath.name[:-len(self.suffix)], pickle.load(f)
+            key_and_parameter = self.get_parameter(filepath)
+            while key_and_parameter is None:
+                print("EOFError, trying again")
+                time.sleep(1)
+            yield key_and_parameter
+
+    def get_parameter(self, filepath):
+        with open(filepath, "rb") as f:
+            try:
+                return filepath.name[: -len(self.suffix)], pickle.load(f)
+            except EOFError:
+                return None

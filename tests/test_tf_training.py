@@ -1,4 +1,6 @@
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
+import os
 from typing import List, Tuple, Any
 import numpy as np
 from tensorflow.keras.datasets import mnist
@@ -20,8 +22,12 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAvgM
 from uuid import uuid4
 from src.federated_node.async_federated_node import AsyncFederatedNode
+from src.federated_node.sync_federated_node import SyncFederatedNode
 from src.storage_backend.in_memory_storage_backend import InMemoryStorageBackend
+from src.storage_backend.local_storage_backend import LocalStorageBackend
 from src.keras.federated_learning_callback import FlwrFederatedCallback
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 @dataclass
@@ -37,6 +43,9 @@ class FederatedLearningTestRun:
     strategy: Strategy = FedAvg()
     storage_backend: Any = InMemoryStorageBackend()
     use_async_node: bool = True
+    # Whether to train federated models concurrently or sequentially.
+    train_concurrently: bool = False
+    train_pseudo_concurrently: bool = False
 
     def run(self):
         (
@@ -59,8 +68,8 @@ class FederatedLearningTestRun:
             )
         print("Evaluating on the combined test set (federated model):")
         # Evaluating only the first model.
-        accuracy_federated = self.evaluate_models(model_federated[0:1])
-        for i_node in [0]:
+        accuracy_federated = self.evaluate_models(model_federated)
+        for i_node in [len(accuracy_federated) - 1]:
             print(
                 "Federated accuracy for node {}: {}".format(
                     i_node, accuracy_federated[i_node]
@@ -119,6 +128,144 @@ class FederatedLearningTestRun:
     def train_federated_models(
         self, model_federated: List[keras.Model]
     ) -> List[keras.Model]:
+        if self.train_pseudo_concurrently:
+            print("Training federated models pseudo-concurrently.")
+            return self._train_federated_models_pseudo_concurrently(model_federated)
+        elif self.train_concurrently:
+            print("Training federated models concurrently")
+            return self._train_federated_models_concurrently(model_federated)
+        else:
+            print("Training federated models sequentially")
+            return self._train_federated_models_sequentially(model_federated)
+
+    def _train_federated_models_concurrently(
+        self, model_federated: List[keras.Model]
+    ) -> List[keras.Model]:
+        strategy = self.strategy
+        storage_backend = self.storage_backend
+        if self.use_async_node:
+            nodes = [
+                AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+                for _ in range(self.num_nodes)
+            ]
+        else:
+            nodes = [
+                SyncFederatedNode(
+                    storage_backend=storage_backend,
+                    strategy=strategy,
+                    num_nodes=self.num_nodes,
+                )
+                for _ in range(self.num_nodes)
+            ]
+        num_partitions = self.num_nodes
+        model_federated = [
+            CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
+        ]
+        callbacks_per_client = [
+            FlwrFederatedCallback(nodes[i], epochs=self.epochs)
+            for i in range(num_partitions)
+        ]
+
+        train_loaders = [
+            self.get_train_dataloader_for_node(i) for i in range(num_partitions)
+        ]
+
+        with ThreadPoolExecutor(max_workers=self.num_nodes) as ex:
+            futures = []
+            for i_node in range(self.num_nodes):
+                if i_node == 0:
+                    future = ex.submit(
+                        model_federated[i_node].fit,
+                        x=train_loaders[i_node],
+                        epochs=self.num_rounds,
+                        steps_per_epoch=self.steps_per_epoch,
+                        callbacks=callbacks_per_client[i_node],
+                        validation_data=(self.x_test, self.y_test),
+                        validation_steps=self.test_steps,
+                        validation_batch_size=self.batch_size,
+                    )
+                else:
+                    future = ex.submit(
+                        model_federated[i_node].fit,
+                        x=train_loaders[i_node],
+                        epochs=self.num_rounds,
+                        steps_per_epoch=self.steps_per_epoch,
+                        callbacks=callbacks_per_client[i_node],
+                    )
+                futures.append(future)
+            train_results = [future.result() for future in futures]
+
+        return model_federated
+
+    def _train_federated_models_pseudo_concurrently(
+        self, model_federated: List[keras.Model], lag: float = 2
+    ) -> List[keras.Model]:
+        # federated learning
+        strategy = self.strategy
+        storage_backend = self.storage_backend
+        if self.use_async_node:
+            nodes = [
+                AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+                for _ in range(self.num_nodes)
+            ]
+        else:
+            raise NotImplementedError()
+        num_partitions = self.num_nodes
+        model_federated = [
+            CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
+        ]
+        callbacks_per_client = [
+            FlwrFederatedCallback(nodes[i]) for i in range(num_partitions)
+        ]
+
+        num_federated_rounds = self.num_rounds
+        num_epochs_per_round = 1
+        train_loaders = [
+            self.get_train_dataloader_for_node(i) for i in range(num_partitions)
+        ]
+
+        seqs = [[]] * self.num_nodes
+        for i_node in range(self.num_nodes):
+            seqs[i_node] = [
+                (i_node, j + i_node * lag) for j in range(num_federated_rounds)
+            ]
+        # mix them up
+        execution_sequence = []
+        for i_node in range(self.num_nodes):
+            execution_sequence.extend(seqs[i_node])
+        execution_sequence = [
+            x[0] for x in sorted(execution_sequence, key=lambda x: x[1])
+        ]
+        print(f"Execution sequence: {execution_sequence}")
+        for i_node in execution_sequence:
+            print("Training node", i_node)
+            model_federated[i_node].fit(
+                x=train_loaders[i_node],
+                epochs=num_epochs_per_round,
+                steps_per_epoch=self.steps_per_epoch,
+                callbacks=callbacks_per_client[i_node],
+            )
+
+            # for i_round in range(num_federated_rounds):
+            #     print("\n============ Round", i_round)
+            #     for i_partition in range(num_partitions):
+            #         model_federated[i_partition].fit(
+            #             train_loaders[i_partition],
+            #             epochs=num_epochs_per_round,
+            #             steps_per_epoch=self.steps_per_epoch,
+            #             callbacks=callbacks_per_client[i_partition],
+            #         )
+            if i_node == 0:
+                print("Evaluating on the combined test set:")
+                model_federated[0].evaluate(
+                    self.x_test, self.y_test, batch_size=self.batch_size, steps=10
+                )
+
+        return model_federated
+
+    def _train_federated_models_sequentially(
+        self, model_federated: List[keras.Model]
+    ) -> List[keras.Model]:
         # federated learning
         strategy = self.strategy
         storage_backend = self.storage_backend
@@ -170,6 +317,33 @@ class FederatedLearningTestRun:
             )
             accuracies.append(accuracy)
         return accuracies
+
+
+class CreateMnistModel:
+    def __init__(self, lr=0.001):
+        self.lr = lr
+
+    def run(self):
+        model = self._build_model()
+        return self._compile_model(model)
+
+    def _build_model(self):
+        input = Input(shape=(28, 28, 1))
+        x = Conv2D(32, kernel_size=4, activation="relu")(input)
+        x = MaxPooling2D()(x)
+        x = Conv2D(16, kernel_size=4, activation="relu")(x)
+        x = Flatten()(x)
+        output = Dense(10, activation="softmax")(x)
+        model = Model(inputs=input, outputs=output)
+        return model
+
+    def _compile_model(self, model):
+        model.compile(
+            optimizer=keras.optimizers.Adam(self.lr),
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+        return model
 
 
 def split_training_data_into_paritions(x_train, y_train, num_partitions: int = 2):
@@ -496,28 +670,51 @@ def test_mnist_federated_callback_3nodes():
     assert accuracy_federated[0] > 1.0 / len(accuracy_standalone) + 0.05
 
 
-class CreateMnistModel:
-    def __init__(self, lr=0.001):
-        self.lr = lr
+def test_mnist_federated_callback_2nodes_pseudo_concurrent(tmpdir):
+    epochs = 10
+    num_nodes = 2
+    accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
+        num_nodes=num_nodes,
+        epochs=epochs,
+        num_rounds=epochs,
+        batch_size=32,
+        steps_per_epoch=8,
+        lr=0.001,
+        strategy=FedAvg(),
+        # storage_backend=InMemoryStorageBackend(),
+        storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
+        train_pseudo_concurrently=True,
+        use_async_node=True,
+    ).run()
+    for i in range(len(accuracy_standalone)):
+        assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
 
-    def run(self):
-        model = self._build_model()
-        return self._compile_model(model)
+    assert accuracy_federated[-1] > accuracy_standalone[-1]
+    assert accuracy_federated[-1] > 1.0 / num_nodes + 0.05
 
-    def _build_model(self):
-        input = Input(shape=(28, 28, 1))
-        x = Conv2D(32, kernel_size=4, activation="relu")(input)
-        x = MaxPooling2D()(x)
-        x = Conv2D(16, kernel_size=4, activation="relu")(x)
-        x = Flatten()(x)
-        output = Dense(10, activation="softmax")(x)
-        model = Model(inputs=input, outputs=output)
-        return model
 
-    def _compile_model(self, model):
-        model.compile(
-            optimizer=keras.optimizers.Adam(self.lr),
-            loss="sparse_categorical_crossentropy",
-            metrics=["accuracy"],
-        )
-        return model
+def test_mnist_federated_callback_2nodes_concurrent(tmpdir):
+    epochs = 10
+    num_nodes = 2
+    accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
+        num_nodes=num_nodes,
+        epochs=epochs,
+        num_rounds=epochs,
+        batch_size=32,
+        steps_per_epoch=8,
+        lr=0.001,
+        strategy=FedAvg(),
+        # storage_backend=InMemoryStorageBackend(),
+        storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
+        train_concurrently=True,
+        use_async_node=True,
+    ).run()
+    for i in range(len(accuracy_standalone)):
+        assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
+
+    assert accuracy_federated[-1] > accuracy_standalone[-1]
+    assert accuracy_federated[-1] > 1.0 / num_nodes + 0.05
+
+
+if __name__ == "__main__":
+    test_mnist_federated_callback_2nodes_concurrent()

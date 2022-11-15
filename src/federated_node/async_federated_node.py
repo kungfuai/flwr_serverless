@@ -1,3 +1,4 @@
+import logging
 from typing import List, Tuple
 from uuid import uuid4
 import time
@@ -8,6 +9,9 @@ from flwr.common import (
     Status,
 )
 from flwr.server.client_proxy import ClientProxy
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class AsyncFederatedNode:
@@ -50,18 +54,18 @@ class AsyncFederatedNode:
 
     References:
     - [Semi-Synchronous Federated Learning for Energy-Efficient
-    Training and Accelerated Convergence in Cross-Silo Settings](https://arxiv.org/pdf/2102.02849.pdf)    """
+    Training and Accelerated Convergence in Cross-Silo Settings](https://arxiv.org/pdf/2102.02849.pdf)"""
+
     def __init__(self, storage_backend, strategy):
         self.node_id = str(uuid4())
         self.counter = 0
         self.strategy = strategy
         self.model_store = storage_backend
         self.seen_models = set()
-    
-    def _get_latest_federated_model(self) -> Parameters:
-        return self.model_store.get("latest_federated", None)
-    
-    def _aggregate(self, parameters_list: List[Parameters], num_examples_list: List[int]=None) -> Parameters:
+
+    def _aggregate(
+        self, parameters_list: List[Parameters], num_examples_list: List[int] = None
+    ) -> Parameters:
         # TODO: allow different num_examples
         num_examples_list = [1] * len(parameters_list)
 
@@ -75,15 +79,16 @@ class AsyncFederatedNode:
                     num_examples=num_examples,
                     metrics={},
                 ),
-            ) for p, num_examples in zip(parameters_list, num_examples_list)
+            )
+            for p, num_examples in zip(parameters_list, num_examples_list)
         ]
-        
+
         aggregated_parameters, _ = self.strategy.aggregate_fit(
-            server_round=self.counter+1, results=results, failures=[]
+            server_round=self.counter + 1, results=results, failures=[]
         )
         self.counter += 1
         return aggregated_parameters
-    
+
     def _get_parameters_from_other_nodes(self) -> List[Parameters]:
         unseen_parameters_from_other_nodes = []
         for key, value in self.model_store.items():
@@ -95,17 +100,34 @@ class AsyncFederatedNode:
                         unseen_parameters_from_other_nodes.append(value["parameters"])
         return unseen_parameters_from_other_nodes
 
-    def update_parameters(self, local_parameters: Parameters, num_examples: int = None):
-        self.model_store[self.node_id] = dict(parameters=local_parameters, model_hash=self.node_id + str(time.time()))
+    def update_parameters(
+        self,
+        local_parameters: Parameters,
+        upload_only: bool = False,
+        num_examples: int = None,
+    ):
+        LOGGER.info(f"node {self.node_id}: in update_parameters")
+        self.model_store[self.node_id] = dict(
+            parameters=local_parameters, model_hash=self.node_id + str(time.time())
+        )
+        if upload_only:
+            return None
         # print(f"\n{len(self.model_store)} nodes\n")
         parameters_from_other_nodes = self._get_parameters_from_other_nodes()
+        LOGGER.info(
+            f"node {self.node_id}: {len(parameters_from_other_nodes or [])} parameters_from_other_nodes"
+        )
         if len(parameters_from_other_nodes) == 0:
             # No other nodes, so just return the local parameters
             return local_parameters
         else:
             # Aggregate the parameters from other nodes
-            parameters_from_self_and_other_nodes = parameters_from_other_nodes + [local_parameters]
-            aggregated_parameters = self._aggregate(parameters_from_self_and_other_nodes)
+            parameters_from_self_and_other_nodes = parameters_from_other_nodes + [
+                local_parameters
+            ]
+            aggregated_parameters = self._aggregate(
+                parameters_from_self_and_other_nodes
+            )
             # self.model_store["latest_federated"] = aggregated_parameters
             return aggregated_parameters
         # latest_federated_parameters = self._get_latest_federated_model()
