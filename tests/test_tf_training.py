@@ -1,14 +1,11 @@
 from dataclasses import dataclass
 from typing import List, Tuple, Any
 import numpy as np
-import tensorflow as tf
-import pytest
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Input, MaxPooling2D
 from tensorflow.keras.models import Model
 from tensorflow import keras
 
-import flwr as fl
 from flwr.server.strategy import Strategy
 from flwr.common import (
     Code,
@@ -37,9 +34,6 @@ class FederatedLearningTestRun:
     lr: float = 0.001
     test_steps: int = 10
 
-    max_standalone_accuracy: float = 0.55
-    min_federated_accuracy: float = 0.6
-
     strategy: Strategy = FedAvg()
     storage_backend: Any = InMemoryStorageBackend()
     use_async_node: bool = True
@@ -48,41 +42,30 @@ class FederatedLearningTestRun:
         (
             self.partitioned_x_train,
             self.partitioned_y_train,
-            x_test,
-            y_test,
+            self.x_test,
+            self.y_test,
         ) = self.create_partitioned_datasets()
-        self.x_test = x_test
-        self.y_test = y_test
-        model_standalone = self.create_standalone_models()
-        model_federated = self.create_federated_models()
+        model_standalone: List[keras.Model] = self.create_standalone_models()
+        model_federated: List[keras.Model] = self.create_federated_models()
         model_standalone = self.train_standalone_models(model_standalone)
         model_federated = self.train_federated_models(model_federated)
-        accuracy_standalone = [0] * self.num_nodes
-        accuracy_federated = [0] * self.num_nodes
         print("Evaluating on the combined test set (standalone models):")
-        for i_node in range(self.num_nodes):
-            _, accuracy_standalone[i_node] = model_standalone[i_node].evaluate(
-                x_test, y_test, batch_size=self.batch_size, steps=self.test_steps
-            )
+        accuracy_standalone = self.evaluate_models(model_standalone)
+        for i_node in range(len(accuracy_standalone)):
             print(
                 "Standalone accuracy for node {}: {}".format(
                     i_node, accuracy_standalone[i_node]
                 )
             )
-            # assert accuracy_standalone[i_node] < self.max_standalone_accuracy
-
         print("Evaluating on the combined test set (federated model):")
+        # Evaluating only the first model.
+        accuracy_federated = self.evaluate_models(model_federated[0:1])
         for i_node in [0]:
-            _, accuracy_federated[i_node] = model_federated[i_node].evaluate(
-                x_test, y_test, batch_size=self.batch_size, steps=self.test_steps
-            )
             print(
                 "Federated accuracy for node {}: {}".format(
                     i_node, accuracy_federated[i_node]
                 )
             )
-            # assert accuracy_federated[i_node] > accuracy_standalone[i_node]
-            # assert accuracy_federated[i_node] > self.min_federated_accuracy
 
         return accuracy_standalone, accuracy_federated
 
@@ -175,6 +158,18 @@ class FederatedLearningTestRun:
             )
 
         return model_federated
+
+    def evaluate_models(self, models: List[keras.Model]) -> List[float]:
+        accuracies = []
+        for model in models:
+            _, accuracy = model.evaluate(
+                self.x_test,
+                self.y_test,
+                batch_size=self.batch_size,
+                steps=self.test_steps,
+            )
+            accuracies.append(accuracy)
+        return accuracies
 
 
 def split_training_data_into_paritions(x_train, y_train, num_partitions: int = 2):
