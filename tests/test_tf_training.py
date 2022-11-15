@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import List, Tuple, Any
 import numpy as np
 import tensorflow as tf
 import pytest
@@ -6,9 +8,8 @@ from tensorflow.keras.layers import Conv2D, Dense, Flatten, Input, MaxPooling2D
 from tensorflow.keras.models import Model
 from tensorflow import keras
 
-from typing import List, Tuple
-
 import flwr as fl
+from flwr.server.strategy import Strategy
 from flwr.common import (
     Code,
     FitRes,
@@ -26,6 +27,156 @@ from src.storage_backend.in_memory_storage_backend import InMemoryStorageBackend
 from src.keras.federated_learning_callback import FlwrFederatedCallback
 
 
+@dataclass
+class FederatedLearningTestRun:
+    num_nodes: int = 2
+    epochs: int = 8
+    num_rounds: int = 8  # number of federated rounds
+    batch_size: int = 32
+    steps_per_epoch: int = 10
+    lr: float = 0.001
+    test_steps: int = 10
+
+    max_standalone_accuracy: float = 0.55
+    min_federated_accuracy: float = 0.6
+
+    strategy: Strategy = FedAvg()
+    storage_backend: Any = InMemoryStorageBackend()
+    use_async_node: bool = True
+
+    def run(self):
+        (
+            self.partitioned_x_train,
+            self.partitioned_y_train,
+            x_test,
+            y_test,
+        ) = self.create_partitioned_datasets()
+        self.x_test = x_test
+        self.y_test = y_test
+        model_standalone = self.create_standalone_models()
+        model_federated = self.create_federated_models()
+        model_standalone = self.train_standalone_models(model_standalone)
+        model_federated = self.train_federated_models(model_federated)
+        accuracy_standalone = [0] * self.num_nodes
+        accuracy_federated = [0] * self.num_nodes
+        print("Evaluating on the combined test set (standalone models):")
+        for i_node in range(self.num_nodes):
+            _, accuracy_standalone[i_node] = model_standalone[i_node].evaluate(
+                x_test, y_test, batch_size=self.batch_size, steps=self.test_steps
+            )
+            print(
+                "Standalone accuracy for node {}: {}".format(
+                    i_node, accuracy_standalone[i_node]
+                )
+            )
+            # assert accuracy_standalone[i_node] < self.max_standalone_accuracy
+
+        print("Evaluating on the combined test set (federated model):")
+        for i_node in [0]:
+            _, accuracy_federated[i_node] = model_federated[i_node].evaluate(
+                x_test, y_test, batch_size=self.batch_size, steps=self.test_steps
+            )
+            print(
+                "Federated accuracy for node {}: {}".format(
+                    i_node, accuracy_federated[i_node]
+                )
+            )
+            # assert accuracy_federated[i_node] > accuracy_standalone[i_node]
+            # assert accuracy_federated[i_node] > self.min_federated_accuracy
+
+        return accuracy_standalone, accuracy_federated
+
+    def create_partitioned_datasets(self):
+        num_partitions = self.num_nodes
+
+        (x_train, y_train), (x_test, y_test) = mnist.load_data()
+        # x_train.shape: (60000, 28, 28)
+        # print(y_train.shape) # (60000,)
+        # Normalize
+        image_size = x_train.shape[1]
+        x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
+        x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
+        x_train = x_train.astype(np.float32) / 255
+        x_test = x_test.astype(np.float32) / 255
+        partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(
+            x_train, y_train, num_partitions=num_partitions
+        )
+        return partitioned_x_train, partitioned_y_train, x_test, y_test
+
+    def create_standalone_models(self):
+        return [CreateMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+
+    def get_train_dataloader_for_node(self, node_idx: int):
+        partition_idx = node_idx
+        batch_size = self.batch_size
+        partitioned_x_train = self.partitioned_x_train
+        partitioned_y_train = self.partitioned_y_train
+        while True:
+            for i in range(0, len(partitioned_x_train[partition_idx]), batch_size):
+                yield partitioned_x_train[partition_idx][
+                    i : i + batch_size
+                ], partitioned_y_train[partition_idx][i : i + batch_size]
+
+    def create_federated_models(self):
+        return [CreateMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+
+    def train_standalone_models(
+        self, model_standalone: List[keras.Model]
+    ) -> List[keras.Model]:
+        for i_node in range(self.num_nodes):
+            train_loader_standalone = self.get_train_dataloader_for_node(i_node)
+            model_standalone[i_node].fit(
+                train_loader_standalone,
+                epochs=self.epochs,
+                steps_per_epoch=self.steps_per_epoch,
+            )
+
+        return model_standalone
+
+    def train_federated_models(
+        self, model_federated: List[keras.Model]
+    ) -> List[keras.Model]:
+        # federated learning
+        strategy = self.strategy
+        storage_backend = self.storage_backend
+        if self.use_async_node:
+            nodes = [
+                AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+                for _ in range(self.num_nodes)
+            ]
+        else:
+            raise NotImplementedError()
+        num_partitions = self.num_nodes
+        model_federated = [
+            CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
+        ]
+        callbacks_per_client = [
+            FlwrFederatedCallback(nodes[i]) for i in range(num_partitions)
+        ]
+
+        num_federated_rounds = self.num_rounds
+        num_epochs_per_round = 1
+        train_loaders = [
+            self.get_train_dataloader_for_node(i) for i in range(num_partitions)
+        ]
+
+        for i_round in range(num_federated_rounds):
+            print("\n============ Round", i_round)
+            for i_partition in range(num_partitions):
+                model_federated[i_partition].fit(
+                    train_loaders[i_partition],
+                    epochs=num_epochs_per_round,
+                    steps_per_epoch=self.steps_per_epoch,
+                    callbacks=callbacks_per_client[i_partition],
+                )
+            print("Evaluating on the combined test set:")
+            model_federated[0].evaluate(
+                self.x_test, self.y_test, batch_size=self.batch_size, steps=10
+            )
+
+        return model_federated
+
+
 def split_training_data_into_paritions(x_train, y_train, num_partitions: int = 2):
     # partion 1: classes 0-4
     # partion 2: classes 5-9
@@ -35,7 +186,10 @@ def split_training_data_into_paritions(x_train, y_train, num_partitions: int = 2
     # but when federated, the accuracy will be higher than 0.6
     classes = list(range(10))
     num_classes_per_partition = int(len(classes) / num_partitions)
-    partitioned_classes = [classes[i:i + num_classes_per_partition] for i in range(0, len(classes), num_classes_per_partition)]
+    partitioned_classes = [
+        classes[i : i + num_classes_per_partition]
+        for i in range(0, len(classes), num_classes_per_partition)
+    ]
     partitioned_x_train = []
     partitioned_y_train = []
     for partition in partitioned_classes:
@@ -48,10 +202,10 @@ def test_mnist_training_clients_on_partitioned_data():
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     # x_train.shape: (60000, 28, 28)
     # print(y_train.shape) # (60000,)
-    epochs = 5
+    epochs = 6
     image_size = x_train.shape[1]
     batch_size = 32
-    steps_per_epoch = 10
+    steps_per_epoch = 8
     x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
     x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
     x_train = x_train.astype(np.float32) / 255
@@ -60,7 +214,9 @@ def test_mnist_training_clients_on_partitioned_data():
     model_standalone1 = CreateMnistModel().run()
     model_standalone2 = CreateMnistModel().run()
 
-    partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(x_train, y_train, num_partitions=2)
+    partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(
+        x_train, y_train, num_partitions=2
+    )
     x_train_partition_1 = partitioned_x_train[0]
     y_train_partition_1 = partitioned_y_train[0]
     x_train_partition_2 = partitioned_x_train[1]
@@ -71,19 +227,31 @@ def test_mnist_training_clients_on_partitioned_data():
     def train_generator1(batch_size):
         while True:
             for i in range(0, len(x_train_partition_1), batch_size):
-                yield x_train_partition_1[i:i+batch_size], y_train_partition_1[i:i+batch_size]
-    
+                yield x_train_partition_1[i : i + batch_size], y_train_partition_1[
+                    i : i + batch_size
+                ]
+
     def train_generator2(batch_size):
         while True:
             for i in range(0, len(x_train_partition_2), batch_size):
-                yield x_train_partition_2[i:i+batch_size], y_train_partition_2[i:i+batch_size]
+                yield x_train_partition_2[i : i + batch_size], y_train_partition_2[
+                    i : i + batch_size
+                ]
 
     train_loader_standalone1 = train_generator1(batch_size)
     train_loader_standalone2 = train_generator2(batch_size)
-    model_standalone1.fit(train_loader_standalone1, epochs=epochs, steps_per_epoch=steps_per_epoch)
-    model_standalone2.fit(train_loader_standalone2, epochs=epochs, steps_per_epoch=steps_per_epoch)
-    _, accuracy_standalone1 = model_standalone1.evaluate(x_test, y_test, batch_size=batch_size, steps=10)
-    _, accuracy_standalone2 = model_standalone2.evaluate(x_test, y_test, batch_size=batch_size, steps=10)
+    model_standalone1.fit(
+        train_loader_standalone1, epochs=epochs, steps_per_epoch=steps_per_epoch
+    )
+    model_standalone2.fit(
+        train_loader_standalone2, epochs=epochs, steps_per_epoch=steps_per_epoch
+    )
+    _, accuracy_standalone1 = model_standalone1.evaluate(
+        x_test, y_test, batch_size=batch_size, steps=10
+    )
+    _, accuracy_standalone2 = model_standalone2.evaluate(
+        x_test, y_test, batch_size=batch_size, steps=10
+    )
     assert accuracy_standalone1 < 0.55
     assert accuracy_standalone2 < 0.55
 
@@ -106,8 +274,16 @@ def test_mnist_training_clients_on_partitioned_data():
     for i_round in range(num_federated_rounds):
         print("\n============ Round", i_round)
         # TODO: bug! dataloader starts from the beginning of the dataset! We should use a generator
-        model_client1.fit(train_loader_client1, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
-        model_client2.fit(train_loader_client2, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
+        model_client1.fit(
+            train_loader_client1,
+            epochs=num_epochs_per_round,
+            steps_per_epoch=steps_per_epoch,
+        )
+        model_client2.fit(
+            train_loader_client2,
+            epochs=num_epochs_per_round,
+            steps_per_epoch=steps_per_epoch,
+        )
         num_examples = batch_size * 10
 
         param_0: Parameters = ndarrays_to_parameters(model_client1.get_weights())
@@ -134,25 +310,28 @@ def test_mnist_training_clients_on_partitioned_data():
                 ),
             ),
         ]
-        
+
         aggregated_parameters, _ = strategy.aggregate_fit(
-            server_round=i_round+1, results=results, failures=[]
+            server_round=i_round + 1, results=results, failures=[]
         )
         # turn actual_aggregated back to keras.Model.
-        aggregated_parameters_numpy: NDArrays = parameters_to_ndarrays(aggregated_parameters)
+        aggregated_parameters_numpy: NDArrays = parameters_to_ndarrays(
+            aggregated_parameters
+        )
         # Update client model weights using the aggregated parameters.
         model_client1.set_weights(aggregated_parameters_numpy)
         model_client2.set_weights(aggregated_parameters_numpy)
 
-    
-    _, accuracy_federated = model_client1.evaluate(x_test, y_test, batch_size=32, steps=10)
+    _, accuracy_federated = model_client1.evaluate(
+        x_test, y_test, batch_size=32, steps=10
+    )
     assert accuracy_federated > accuracy_standalone1
     assert accuracy_federated > accuracy_standalone2
-    assert accuracy_federated > 0.6 # flaky test
+    assert accuracy_federated > 0.6  # flaky test
 
 
 def test_mnist_training_standalone():
-    
+
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     # x_train.shape: (60000, 28, 28)
     # print(y_train.shape) # (60000,)
@@ -174,7 +353,7 @@ def test_mnist_training_standalone():
 
 def test_mnist_training_using_federated_nodes():
     # epochs = standalone_epochs = 3  # does not work
-    epochs = standalone_epochs = 6  # works
+    epochs = standalone_epochs = 8  # works
 
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     # x_train.shape: (60000, 28, 28)
@@ -183,7 +362,7 @@ def test_mnist_training_using_federated_nodes():
     image_size = x_train.shape[1]
     batch_size = 32
     steps_per_epoch = 8
-    
+
     x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
     x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
     x_train = x_train.astype(np.float32) / 255
@@ -192,7 +371,9 @@ def test_mnist_training_using_federated_nodes():
     model_standalone1 = CreateMnistModel().run()
     model_standalone2 = CreateMnistModel().run()
 
-    partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(x_train, y_train, num_partitions=2)
+    partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(
+        x_train, y_train, num_partitions=2
+    )
     x_train_partition_1 = partitioned_x_train[0]
     y_train_partition_1 = partitioned_y_train[0]
     x_train_partition_2 = partitioned_x_train[1]
@@ -203,20 +384,32 @@ def test_mnist_training_using_federated_nodes():
     def train_generator1(batch_size):
         while True:
             for i in range(0, len(x_train_partition_1), batch_size):
-                yield x_train_partition_1[i:i+batch_size], y_train_partition_1[i:i+batch_size]
-    
+                yield x_train_partition_1[i : i + batch_size], y_train_partition_1[
+                    i : i + batch_size
+                ]
+
     def train_generator2(batch_size):
         while True:
             for i in range(0, len(x_train_partition_2), batch_size):
-                yield x_train_partition_2[i:i+batch_size], y_train_partition_2[i:i+batch_size]
+                yield x_train_partition_2[i : i + batch_size], y_train_partition_2[
+                    i : i + batch_size
+                ]
 
     train_loader_standalone1 = train_generator1(batch_size)
     train_loader_standalone2 = train_generator2(batch_size)
-    model_standalone1.fit(train_loader_standalone1, epochs=epochs, steps_per_epoch=steps_per_epoch)
-    model_standalone2.fit(train_loader_standalone2, epochs=epochs, steps_per_epoch=steps_per_epoch)
+    model_standalone1.fit(
+        train_loader_standalone1, epochs=epochs, steps_per_epoch=steps_per_epoch
+    )
+    model_standalone2.fit(
+        train_loader_standalone2, epochs=epochs, steps_per_epoch=steps_per_epoch
+    )
     print("Evaluating on the combined test set:")
-    _, accuracy_standalone1 = model_standalone1.evaluate(x_test, y_test, batch_size=batch_size, steps=10)
-    _, accuracy_standalone2 = model_standalone2.evaluate(x_test, y_test, batch_size=batch_size, steps=10)
+    _, accuracy_standalone1 = model_standalone1.evaluate(
+        x_test, y_test, batch_size=batch_size, steps=10
+    )
+    _, accuracy_standalone2 = model_standalone2.evaluate(
+        x_test, y_test, batch_size=batch_size, steps=10
+    )
     assert accuracy_standalone1 < 0.55
     assert accuracy_standalone2 < 0.55
 
@@ -240,7 +433,11 @@ def test_mnist_training_using_federated_nodes():
     node2 = AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
     for i_round in range(num_federated_rounds):
         print("\n============ Round", i_round)
-        model_client1.fit(train_loader_client1, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
+        model_client1.fit(
+            train_loader_client1,
+            epochs=num_epochs_per_round,
+            steps_per_epoch=steps_per_epoch,
+        )
         num_examples = batch_size * 10
         param_1: Parameters = ndarrays_to_parameters(model_client1.get_weights())
         updated_param_1 = node1.update_parameters(param_1, num_examples=num_examples)
@@ -249,7 +446,11 @@ def test_mnist_training_using_federated_nodes():
         else:
             print("node1 is waiting for other nodes to send their parameters")
 
-        model_client2.fit(train_loader_client2, epochs=num_epochs_per_round, steps_per_epoch=steps_per_epoch)
+        model_client2.fit(
+            train_loader_client2,
+            epochs=num_epochs_per_round,
+            steps_per_epoch=steps_per_epoch,
+        )
         num_examples = batch_size * 10
         param_2: Parameters = ndarrays_to_parameters(model_client2.get_weights())
         updated_param_2 = node2.update_parameters(param_2, num_examples=num_examples)
@@ -258,81 +459,51 @@ def test_mnist_training_using_federated_nodes():
         else:
             print("node2 is waiting for other nodes to send their parameters")
 
-    print("Evaluating on the combined test set:")
-    _, accuracy_federated = model_client1.evaluate(x_test, y_test, batch_size=32, steps=10)
+        print("Evaluating on the combined test set:")
+        _, accuracy_federated = model_client1.evaluate(
+            x_test, y_test, batch_size=32, steps=10
+        )
+
     assert accuracy_federated > accuracy_standalone1
     assert accuracy_federated > accuracy_standalone2
-    assert accuracy_federated > 0.6 # flaky test
+    assert accuracy_federated > 0.6  # flaky test
 
 
-def test_mnist_federated_callback():
-    num_partitions = 3
-    # epochs = standalone_epochs = 3  # does not work
-    epochs = standalone_epochs = 10  # works
+def test_mnist_federated_callback_2nodes():
+    epochs = 8
+    accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
+        num_nodes=2,
+        epochs=epochs,
+        num_rounds=epochs,
+        lr=0.001,
+        strategy=FedAvg(),
+    ).run()
+    for i in range(len(accuracy_standalone)):
+        assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
 
-    (x_train, y_train), (x_test, y_test) = mnist.load_data()
-    # x_train.shape: (60000, 28, 28)
-    # print(y_train.shape) # (60000,)
-    # Normalize
-    image_size = x_train.shape[1]
-    batch_size = 32
-    steps_per_epoch = 8
-    
-    x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
-    x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
-    x_train = x_train.astype(np.float32) / 255
-    x_test = x_test.astype(np.float32) / 255
-    partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(x_train, y_train, num_partitions=num_partitions)
+    assert accuracy_federated[0] > accuracy_standalone[0]
+    assert accuracy_federated[0] > 1.0 / len(accuracy_standalone) + 0.05
 
-    model_standalone = [CreateMnistModel().run() for _ in range(num_partitions)]
 
-    # Using generator for its ability to resume. This is important for federated learning, otherwise in each federated round,
-    # the cursor starts from the beginning every time.
-    def train_generator(partition_idx: int):
-        while True:
-            for i in range(0, len(partitioned_x_train[partition_idx]), batch_size):
-                yield partitioned_x_train[partition_idx][i:i+batch_size], partitioned_y_train[partition_idx][i:i+batch_size]
+def test_mnist_federated_callback_3nodes():
+    epochs = 8
+    accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
+        num_nodes=3,
+        epochs=epochs,
+        num_rounds=epochs,
+        lr=0.001,
+        strategy=FedAvg(),
+    ).run()
+    for i in range(len(accuracy_standalone)):
+        assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
 
-    for i_partition in range(num_partitions):
-        train_loader_standalone = train_generator(i_partition)
-        model_standalone[i_partition].fit(train_loader_standalone, epochs=epochs, steps_per_epoch=steps_per_epoch)
-    
-    print("Evaluating on the combined test set:")
-    accuracy_standalone = [0] * num_partitions
-    for i_partition in range(num_partitions):
-        _, accuracy_standalone[i_partition] = model_standalone[i_partition].evaluate(x_test, y_test, batch_size=batch_size, steps=10)
-        assert accuracy_standalone[i_partition] < 1. / num_partitions + 0.05
-
-    # federated learning
-    strategy = FedAvg()
-    storage_backend = InMemoryStorageBackend()
-    nodes = [AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy) for _ in range(num_partitions)]
-    model_federated = [CreateMnistModel().run() for _ in range(num_partitions)]
-    callbacks_per_client = [FlwrFederatedCallback(nodes[i]) for i in range(num_partitions)]
-
-    num_federated_rounds = standalone_epochs
-    num_epochs_per_round = 1
-    train_loaders = [train_generator(i) for i in range(num_partitions)]
-
-    for i_round in range(num_federated_rounds):
-        print("\n============ Round", i_round)
-        for i_partition in range(num_partitions):
-            model_federated[i_partition].fit(
-                train_loaders[i_partition],
-                epochs=num_epochs_per_round,
-                steps_per_epoch=steps_per_epoch,
-                callbacks=callbacks_per_client[i_partition]
-            )
-        print("Evaluating on the combined test set:")
-        _, accuracy_federated = model_federated[0].evaluate(x_test, y_test, batch_size=batch_size, steps=10)
-        
-    assert accuracy_federated > accuracy_standalone[0]
-    assert accuracy_federated > 0.5
+    assert accuracy_federated[0] > accuracy_standalone[0]
+    assert accuracy_federated[0] > 1.0 / len(accuracy_standalone) + 0.05
 
 
 class CreateMnistModel:
-    def __init__(self):
-        pass
+    def __init__(self, lr=0.001):
+        self.lr = lr
 
     def run(self):
         model = self._build_model()
@@ -350,7 +521,7 @@ class CreateMnistModel:
 
     def _compile_model(self, model):
         model.compile(
-            optimizer=keras.optimizers.Adam(0.001),
+            optimizer=keras.optimizers.Adam(self.lr),
             loss="sparse_categorical_crossentropy",
             metrics=["accuracy"],
         )

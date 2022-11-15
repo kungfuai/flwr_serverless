@@ -4,11 +4,8 @@ import time
 from flwr.common import (
     Code,
     FitRes,
-    NDArrays,
     Parameters,
     Status,
-    ndarrays_to_parameters,
-    parameters_to_ndarrays,
 )
 from flwr.server.client_proxy import ClientProxy
 
@@ -51,30 +48,24 @@ class AsyncFederatedNode:
     server returns aggregated params_federated_2
     client 1 updates its params to params_federated_2 and keeps training
 
-    """
+    References:
+    - [Semi-Synchronous Federated Learning for Energy-Efficient
+    Training and Accelerated Convergence in Cross-Silo Settings](https://arxiv.org/pdf/2102.02849.pdf)    """
     def __init__(self, storage_backend, strategy):
         self.node_id = str(uuid4())
         self.counter = 0
         self.strategy = strategy
         self.model_store = storage_backend
         self.seen_models = set()
-        # self.model_store["latest_federated"] = None
-        # self.model_store = {
-        #     "last_seen_node_id": None,
-        #     "latest_federated": None,
-        # }
     
     def _get_latest_federated_model(self) -> Parameters:
         return self.model_store.get("latest_federated", None)
     
     def _aggregate(self, parameters_list: List[Parameters], num_examples_list: List[int]=None) -> Parameters:
-        # if num_examples is None or federated_num_examples is None:
-        #     num_examples = 1
-        #     federated_num_examples = 1
         # TODO: allow different num_examples
         num_examples_list = [1] * len(parameters_list)
 
-        # Aggregation using the strategy.
+        # Aggregation using the flwr strategy.
         results: List[Tuple[ClientProxy, FitRes]] = [
             (
                 None,
@@ -94,15 +85,15 @@ class AsyncFederatedNode:
         return aggregated_parameters
     
     def _get_parameters_from_other_nodes(self) -> List[Parameters]:
-        parameters = []
+        unseen_parameters_from_other_nodes = []
         for key, value in self.model_store.items():
             if isinstance(value, dict) and "parameters" in value:
                 if key != self.node_id:
                     model_hash = value["model_hash"]
                     if model_hash not in self.seen_models:
                         self.seen_models.add(model_hash)
-                        parameters.append(value["parameters"])
-        return parameters
+                        unseen_parameters_from_other_nodes.append(value["parameters"])
+        return unseen_parameters_from_other_nodes
 
     def update_parameters(self, local_parameters: Parameters, num_examples: int = None):
         self.model_store[self.node_id] = dict(parameters=local_parameters, model_hash=self.node_id + str(time.time()))
