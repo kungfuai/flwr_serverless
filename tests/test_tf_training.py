@@ -46,6 +46,7 @@ class FederatedLearningTestRun:
     # Whether to train federated models concurrently or sequentially.
     train_concurrently: bool = False
     train_pseudo_concurrently: bool = False
+    lag: float = 0.1
 
     def run(self):
         (
@@ -198,9 +199,10 @@ class FederatedLearningTestRun:
         return model_federated
 
     def _train_federated_models_pseudo_concurrently(
-        self, model_federated: List[keras.Model], lag: float = 2
+        self, model_federated: List[keras.Model]
     ) -> List[keras.Model]:
         # federated learning
+        lag = self.lag
         strategy = self.strategy
         storage_backend = self.storage_backend
         if self.use_async_node:
@@ -670,7 +672,7 @@ def test_mnist_federated_callback_3nodes():
     assert accuracy_federated[0] > 1.0 / len(accuracy_standalone) + 0.05
 
 
-def test_mnist_federated_callback_2nodes_pseudo_concurrent(tmpdir):
+def test_mnist_federated_callback_2nodes_lag0_1(tmpdir):
     epochs = 10
     num_nodes = 2
     accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
@@ -685,6 +687,31 @@ def test_mnist_federated_callback_2nodes_pseudo_concurrent(tmpdir):
         storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
         train_pseudo_concurrently=True,
         use_async_node=True,
+        lag=0.1,
+    ).run()
+    for i in range(len(accuracy_standalone)):
+        assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
+
+    assert accuracy_federated[-1] > accuracy_standalone[-1]
+    assert accuracy_federated[-1] > 1.0 / num_nodes + 0.05
+
+
+def test_mnist_federated_callback_2nodes_lag2(tmpdir):
+    epochs = 10
+    num_nodes = 2
+    accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
+        num_nodes=num_nodes,
+        epochs=epochs,
+        num_rounds=epochs,
+        batch_size=32,
+        steps_per_epoch=8,
+        lr=0.001,
+        strategy=FedAvg(),
+        # storage_backend=InMemoryStorageBackend(),
+        storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
+        train_pseudo_concurrently=True,
+        use_async_node=True,
+        lag=2,
     ).run()
     for i in range(len(accuracy_standalone)):
         assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
