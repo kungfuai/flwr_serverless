@@ -165,7 +165,10 @@ class FederatedLearningTestRun:
         ]
         callbacks_per_client = [
             FlwrFederatedCallback(
-                nodes[i], epochs=self.epochs, x_test=self.x_test, y_test=self.y_test
+                nodes[i],
+                x_test=self.x_test,
+                y_test=self.y_test,
+                num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
             )
             for i in range(num_partitions)
         ]
@@ -214,7 +217,7 @@ class FederatedLearningTestRun:
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],
-                num_examples_per_epoch=1000,
+                num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
                 x_test=self.x_test[: self.test_steps * self.batch_size, ...],
                 y_test=self.y_test[: self.test_steps * self.batch_size, ...],
             )
@@ -284,7 +287,10 @@ class FederatedLearningTestRun:
             CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
         ]
         callbacks_per_client = [
-            FlwrFederatedCallback(nodes[i]) for i in range(num_partitions)
+            FlwrFederatedCallback(
+                nodes[i], num_examples_per_epoch=self.batch_size * self.steps_per_epoch
+            )
+            for i in range(num_partitions)
         ]
 
         num_federated_rounds = self.num_rounds

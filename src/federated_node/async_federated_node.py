@@ -68,11 +68,8 @@ class AsyncFederatedNode:
         self, parameters_list: List[Parameters], num_examples_list: List[int] = None
     ) -> Parameters:
         # TODO: allow different num_examples
-        #  if num_examples_list is None:
-        num_examples_list = [1] * len(parameters_list)
-        # LOGGER.warning(
-        #     f"node: {self.node_id[:2]}, num_examples_list: {num_examples_list}"
-        # )
+        # if num_examples_list is None:
+        # num_examples_list = [1] * len(parameters_list)
 
         # Aggregation using the flwr strategy.
         results: List[Tuple[ClientProxy, FitRes]] = [
@@ -106,41 +103,22 @@ class AsyncFederatedNode:
                     if True:  # model_hash not in self.seen_models:
                         self.seen_models.add(model_hash)
                         unseen_parameters_from_other_nodes.append(value["parameters"])
-                        # accum_num_examples_for_this_node = self.model_store[
-                        #     f"accum_num_examples_{key}"
-                        # ]
-                        # accum_num_examples_for_this_node = (
-                        #     accum_num_examples_for_this_node or 0
-                        # )
-                        # unseen_num_examples_from_this_node = (
-                        #     accum_num_examples_for_this_node
-                        #     - self.sample_sizes_from_other_nodes.get(key, 0)
-                        # )
-                        # self.sample_sizes_from_other_nodes[
-                        #     key
-                        # ] = accum_num_examples_for_this_node
-                        # num_examples_from_other_nodes.append(
-                        #     unseen_num_examples_from_this_node
-                        # )
-        return unseen_parameters_from_other_nodes, 0  # num_examples_from_other_nodes
+                        num_examples_from_other_nodes.append(value["num_examples"])
+        return unseen_parameters_from_other_nodes, num_examples_from_other_nodes
 
     def update_parameters(
         self,
         local_parameters: Parameters,
-        upload_only: bool = False,
         num_examples: int = None,
     ):
         LOGGER.info(f"node {self.node_id}: in update_parameters")
+        assert isinstance(num_examples, int)
+        assert num_examples >= 1
         self.model_store[self.node_id] = dict(
-            parameters=local_parameters, model_hash=self.node_id + str(time.time())
+            parameters=local_parameters,
+            model_hash=self.node_id + str(time.time()),
+            num_examples=num_examples,
         )
-        # sample_size_key = f"accum_num_examples_{self.node_id}"
-        # num_examples = num_examples or 0
-        # if self.model_store.get(sample_size_key, None) is None:
-        #     self.model_store[sample_size_key] = num_examples
-        # else:
-        #     self.model_store[sample_size_key] += num_examples
-        # print(f"\n{len(self.model_store)} nodes\n")
         (
             parameters_from_other_nodes,
             num_examples_from_other_nodes,
@@ -158,7 +136,13 @@ class AsyncFederatedNode:
             ] + parameters_from_other_nodes
             aggregated_parameters = self._aggregate(
                 parameters_from_self_and_other_nodes,
-                # num_examples_list=[num_examples] + num_examples_from_other_nodes,
+                num_examples_list=[num_examples] + num_examples_from_other_nodes,
             )
-            # self.model_store["latest_federated"] = aggregated_parameters
+            # It is counter-productive to set self.model_store[node_id] to the aggregated parameters.
+            # It makes the accuracy worse.
+            # self.model_store[self.node_id] = dict(
+            #     parameters=aggregated_parameters,
+            #     model_hash=self.node_id + str(time.time()),
+            #     num_examples=num_examples,
+            # )
             return aggregated_parameters
