@@ -9,7 +9,15 @@ from flwr.common import (
 
 
 class FlwrFederatedCallback(keras.callbacks.Callback):
-    def __init__(self, node: AsyncFederatedNode, epochs: int = None, **kwargs):
+    def __init__(
+        self,
+        node: AsyncFederatedNode,
+        epochs: int = None,
+        num_examples_per_epoch: int = None,
+        x_test=None,
+        y_test=None,
+        **kwargs,
+    ):
         """
         TODO: User needs to specify a shared folder / bucket.
         User optionally can specify a strategy by name.
@@ -17,6 +25,9 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         super().__init__(**kwargs)
         self.node = node
         self.epochs = epochs
+        self.num_examples_per_epoch = num_examples_per_epoch
+        self.x_test = x_test
+        self.y_test = y_test
 
     def on_epoch_end(self, epoch: int, logs=None):
         # use the P2PStrategy to update the model.
@@ -25,8 +36,15 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
             upload_only = True
         else:
             upload_only = False
-        updated_param_1 = self.node.update_parameters(param_1, upload_only=upload_only)
+        updated_param_1 = self.node.update_parameters(
+            param_1, upload_only=upload_only, num_examples=self.num_examples_per_epoch
+        )
         if updated_param_1 is not None:
             self.model.set_weights(parameters_to_ndarrays(updated_param_1))
+            if self.x_test is not None:
+                print("\n=========================== eval inside callback")
+                self.model.evaluate(
+                    self.x_test, self.y_test, batch_size=32, steps=10, verbose=2
+                )
         else:
-            print("node1 is waiting for other nodes to send their parameters")
+            print("waiting for other nodes to send their parameters")

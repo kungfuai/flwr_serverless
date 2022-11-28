@@ -79,7 +79,7 @@ class SyncFederatedNode:
         # print(f"\n{len(self.model_store)} nodes\n")
         parameters_from_other_nodes = self._get_parameters_from_other_nodes()
         wait_counter = 0
-        max_wait = 5  # 60 * 10
+        max_wait = 3  # 60 * 10
         while len(parameters_from_other_nodes) < self.num_nodes - 1:
             # Other nodes have not all sent their parameters yet.
             # Wait with exponential back-off.

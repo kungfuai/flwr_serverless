@@ -1,6 +1,7 @@
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 import os
+import time
 from typing import List, Tuple, Any
 import numpy as np
 from tensorflow.keras.datasets import mnist
@@ -70,7 +71,7 @@ class FederatedLearningTestRun:
         print("Evaluating on the combined test set (federated model):")
         # Evaluating only the first model.
         accuracy_federated = self.evaluate_models(model_federated)
-        for i_node in [len(accuracy_federated) - 1]:
+        for i_node in range(self.num_nodes):  # [len(accuracy_federated) - 1]:
             print(
                 "Federated accuracy for node {}: {}".format(
                     i_node, accuracy_federated[i_node]
@@ -163,7 +164,9 @@ class FederatedLearningTestRun:
             CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
         ]
         callbacks_per_client = [
-            FlwrFederatedCallback(nodes[i], epochs=self.epochs)
+            FlwrFederatedCallback(
+                nodes[i], epochs=self.epochs, x_test=self.x_test, y_test=self.y_test
+            )
             for i in range(num_partitions)
         ]
 
@@ -174,25 +177,17 @@ class FederatedLearningTestRun:
         with ThreadPoolExecutor(max_workers=self.num_nodes) as ex:
             futures = []
             for i_node in range(self.num_nodes):
-                if i_node == 0:
-                    future = ex.submit(
-                        model_federated[i_node].fit,
-                        x=train_loaders[i_node],
-                        epochs=self.num_rounds,
-                        steps_per_epoch=self.steps_per_epoch,
-                        callbacks=callbacks_per_client[i_node],
-                        validation_data=(self.x_test, self.y_test),
-                        validation_steps=self.test_steps,
-                        validation_batch_size=self.batch_size,
-                    )
-                else:
-                    future = ex.submit(
-                        model_federated[i_node].fit,
-                        x=train_loaders[i_node],
-                        epochs=self.num_rounds,
-                        steps_per_epoch=self.steps_per_epoch,
-                        callbacks=callbacks_per_client[i_node],
-                    )
+                # time.sleep(0.5 * i_node)
+                future = ex.submit(
+                    model_federated[i_node].fit,
+                    x=train_loaders[i_node],
+                    epochs=self.num_rounds,
+                    steps_per_epoch=self.steps_per_epoch,
+                    callbacks=[callbacks_per_client[i_node]],
+                    validation_data=(self.x_test, self.y_test),
+                    validation_steps=self.test_steps,
+                    validation_batch_size=self.batch_size,
+                )
                 futures.append(future)
             train_results = [future.result() for future in futures]
 
@@ -217,7 +212,13 @@ class FederatedLearningTestRun:
             CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
         ]
         callbacks_per_client = [
-            FlwrFederatedCallback(nodes[i]) for i in range(num_partitions)
+            FlwrFederatedCallback(
+                nodes[i],
+                num_examples_per_epoch=1000,
+                x_test=self.x_test[: self.test_steps * self.batch_size, ...],
+                y_test=self.y_test[: self.test_steps * self.batch_size, ...],
+            )
+            for i in range(num_partitions)
         ]
 
         num_federated_rounds = self.num_rounds
@@ -246,21 +247,21 @@ class FederatedLearningTestRun:
                 epochs=num_epochs_per_round,
                 steps_per_epoch=self.steps_per_epoch,
                 callbacks=callbacks_per_client[i_node],
+                validation_data=(
+                    self.x_test[: self.test_steps * self.batch_size, ...],
+                    self.y_test[: self.test_steps * self.batch_size, ...],
+                ),
+                validation_steps=self.test_steps,
+                validation_batch_size=self.batch_size,
             )
 
-            # for i_round in range(num_federated_rounds):
-            #     print("\n============ Round", i_round)
-            #     for i_partition in range(num_partitions):
-            #         model_federated[i_partition].fit(
-            #             train_loaders[i_partition],
-            #             epochs=num_epochs_per_round,
-            #             steps_per_epoch=self.steps_per_epoch,
-            #             callbacks=callbacks_per_client[i_partition],
-            #         )
             if i_node == 0:
                 print("Evaluating on the combined test set:")
                 model_federated[0].evaluate(
-                    self.x_test, self.y_test, batch_size=self.batch_size, steps=10
+                    self.x_test[: self.test_steps * self.batch_size, ...],
+                    self.y_test[: self.test_steps * self.batch_size, ...],
+                    batch_size=self.batch_size,
+                    steps=10,
                 )
 
         return model_federated
@@ -707,8 +708,8 @@ def test_mnist_federated_callback_2nodes_lag2(tmpdir):
         steps_per_epoch=8,
         lr=0.001,
         strategy=FedAvg(),
-        # storage_backend=InMemoryStorageBackend(),
-        storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
+        storage_backend=InMemoryStorageBackend(),
+        # storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
         train_pseudo_concurrently=True,
         use_async_node=True,
         lag=2,
@@ -721,8 +722,9 @@ def test_mnist_federated_callback_2nodes_lag2(tmpdir):
 
 
 def test_mnist_federated_callback_2nodes_concurrent(tmpdir):
-    epochs = 10
+    epochs = 8
     num_nodes = 2
+    fed_dir = tmpdir.join("fed_test")
     accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
         num_nodes=num_nodes,
         epochs=epochs,
@@ -732,10 +734,12 @@ def test_mnist_federated_callback_2nodes_concurrent(tmpdir):
         lr=0.001,
         strategy=FedAvg(),
         # storage_backend=InMemoryStorageBackend(),
-        storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
+        storage_backend=LocalStorageBackend(directory=str(fed_dir)),
         train_concurrently=True,
+        # use_async_node=False,
         use_async_node=True,
     ).run()
+    # print(fed_dir.listdir())
     for i in range(len(accuracy_standalone)):
         assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
 
