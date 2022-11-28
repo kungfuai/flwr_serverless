@@ -9,6 +9,8 @@ from flwr.common import (
     Status,
 )
 from flwr.server.client_proxy import ClientProxy
+from flwr.server.strategy import Strategy
+from src.shared_folder.base_folder import SharedFolder
 
 
 LOGGER = logging.getLogger(__name__)
@@ -56,20 +58,24 @@ class AsyncFederatedNode:
     - [Semi-Synchronous Federated Learning for Energy-Efficient
     Training and Accelerated Convergence in Cross-Silo Settings](https://arxiv.org/pdf/2102.02849.pdf)"""
 
-    def __init__(self, storage_backend, strategy):
-        self.node_id = str(uuid4())
+    def __init__(
+        self,
+        shared_folder: SharedFolder,
+        strategy: Strategy,
+        ignore_seen_models: bool = False,
+        node_id: str = None,
+    ):
+        self.node_id = node_id or str(uuid4())
         self.counter = 0
         self.strategy = strategy
-        self.model_store = storage_backend
-        self.seen_models = set()
+        self.model_store = shared_folder
         self.sample_sizes_from_other_nodes = {}  # node_id -> num_examples
+        self.ignore_seen_models = ignore_seen_models
+        self.seen_models = set()
 
     def _aggregate(
         self, parameters_list: List[Parameters], num_examples_list: List[int] = None
     ) -> Parameters:
-        # TODO: allow different num_examples
-        # if num_examples_list is None:
-        # num_examples_list = [1] * len(parameters_list)
 
         # Aggregation using the flwr strategy.
         results: List[Tuple[ClientProxy, FitRes]] = [
@@ -100,7 +106,9 @@ class AsyncFederatedNode:
             if isinstance(value, dict) and "parameters" in value:
                 if key != self.node_id:
                     model_hash = value["model_hash"]
-                    if True:  # model_hash not in self.seen_models:
+                    if (
+                        not self.ignore_seen_models
+                    ) or model_hash not in self.seen_models:
                         self.seen_models.add(model_hash)
                         unseen_parameters_from_other_nodes.append(value["parameters"])
                         num_examples_from_other_nodes.append(value["num_examples"])

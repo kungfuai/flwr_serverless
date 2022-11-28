@@ -19,20 +19,17 @@ class SyncFederatedNode:
     Synchronous federated learning.
     """
 
-    def __init__(self, storage_backend, strategy, num_nodes: int):
+    def __init__(self, shared_folder, strategy, num_nodes: int):
         self.node_id = str(uuid4())
         self.counter = 0
         self.strategy = strategy
-        self.model_store = storage_backend
+        self.model_store = shared_folder
         self.seen_models = set()
         self.num_nodes = num_nodes
 
     def _aggregate(
         self, parameters_list: List[Parameters], num_examples_list: List[int] = None
     ) -> Parameters:
-        # TODO: allow different num_examples
-        num_examples_list = [1] * len(parameters_list)
-
         # Aggregation using the flwr strategy.
         results: List[Tuple[ClientProxy, FitRes]] = [
             (

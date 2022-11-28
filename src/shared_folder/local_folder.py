@@ -4,7 +4,7 @@ import time
 from typing import Any
 
 
-class LocalStorageBackend:
+class LocalFolder:
     def __init__(
         self, directory: str = None, retry_sleep_time: int = 3, max_retry: int = 3
     ):

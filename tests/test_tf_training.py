@@ -1,7 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
-import os
-import time
 from typing import List, Tuple, Any
 import numpy as np
 from tensorflow.keras.datasets import mnist
@@ -24,8 +22,8 @@ from flwr.server.strategy import FedAvg, FedAdam, FedAvgM
 from uuid import uuid4
 from src.federated_node.async_federated_node import AsyncFederatedNode
 from src.federated_node.sync_federated_node import SyncFederatedNode
-from src.storage_backend.in_memory_storage_backend import InMemoryStorageBackend
-from src.storage_backend.local_storage_backend import LocalStorageBackend
+from src.shared_folder.in_memory_folder import InMemoryFolder
+from src.shared_folder.local_folder import LocalFolder
 from src.keras.federated_learning_callback import FlwrFederatedCallback
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -42,7 +40,7 @@ class FederatedLearningTestRun:
     test_steps: int = 10
 
     strategy: Strategy = FedAvg()
-    storage_backend: Any = InMemoryStorageBackend()
+    storage_backend: Any = InMemoryFolder()
     use_async_node: bool = True
     # Whether to train federated models concurrently or sequentially.
     train_concurrently: bool = False
@@ -147,13 +145,13 @@ class FederatedLearningTestRun:
         storage_backend = self.storage_backend
         if self.use_async_node:
             nodes = [
-                AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+                AsyncFederatedNode(shared_folder=storage_backend, strategy=strategy)
                 for _ in range(self.num_nodes)
             ]
         else:
             nodes = [
                 SyncFederatedNode(
-                    storage_backend=storage_backend,
+                    shared_folder=storage_backend,
                     strategy=strategy,
                     num_nodes=self.num_nodes,
                 )
@@ -205,7 +203,7 @@ class FederatedLearningTestRun:
         storage_backend = self.storage_backend
         if self.use_async_node:
             nodes = [
-                AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+                AsyncFederatedNode(shared_folder=storage_backend, strategy=strategy)
                 for _ in range(self.num_nodes)
             ]
         else:
@@ -277,7 +275,7 @@ class FederatedLearningTestRun:
         storage_backend = self.storage_backend
         if self.use_async_node:
             nodes = [
-                AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+                AsyncFederatedNode(shared_folder=storage_backend, strategy=strategy)
                 for _ in range(self.num_nodes)
             ]
         else:
@@ -606,9 +604,9 @@ def test_mnist_training_using_federated_nodes():
     train_loader_client1 = train_generator1(batch_size=batch_size)
     train_loader_client2 = train_generator2(batch_size=batch_size)
 
-    storage_backend = InMemoryStorageBackend()
-    node1 = AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
-    node2 = AsyncFederatedNode(storage_backend=storage_backend, strategy=strategy)
+    storage_backend = InMemoryFolder()
+    node1 = AsyncFederatedNode(shared_folder=storage_backend, strategy=strategy)
+    node2 = AsyncFederatedNode(shared_folder=storage_backend, strategy=strategy)
     for i_round in range(num_federated_rounds):
         print("\n============ Round", i_round)
         model_client1.fit(
@@ -690,8 +688,8 @@ def test_mnist_federated_callback_2nodes_lag0_1(tmpdir):
         steps_per_epoch=8,
         lr=0.001,
         strategy=FedAvg(),
-        # storage_backend=InMemoryStorageBackend(),
-        storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
+        # storage_backend=InMemoryFolder(),
+        storage_backend=LocalFolder(directory=str(tmpdir.join("fed_test"))),
         train_pseudo_concurrently=True,
         use_async_node=True,
         lag=0.1,
@@ -714,8 +712,8 @@ def test_mnist_federated_callback_2nodes_lag2(tmpdir):
         steps_per_epoch=8,
         lr=0.001,
         strategy=FedAvg(),
-        storage_backend=InMemoryStorageBackend(),
-        # storage_backend=LocalStorageBackend(directory=str(tmpdir.join("fed_test"))),
+        storage_backend=InMemoryFolder(),
+        # storage_backend=LocalFolder(directory=str(tmpdir.join("fed_test"))),
         train_pseudo_concurrently=True,
         use_async_node=True,
         lag=2,
@@ -739,8 +737,8 @@ def test_mnist_federated_callback_2nodes_concurrent(tmpdir):
         steps_per_epoch=8,
         lr=0.001,
         strategy=FedAvg(),
-        # storage_backend=InMemoryStorageBackend(),
-        storage_backend=LocalStorageBackend(directory=str(fed_dir)),
+        # storage_backend=InMemoryFolder(),
+        storage_backend=LocalFolder(directory=str(fed_dir)),
         train_concurrently=True,
         # use_async_node=False,
         use_async_node=True,
