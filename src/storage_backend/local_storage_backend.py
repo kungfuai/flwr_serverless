@@ -2,21 +2,24 @@ from pathlib import Path
 import pickle
 import time
 from typing import Any
-from flwr.common import Parameters
 
 
 class LocalStorageBackend:
-    def __init__(self, directory: str = None):
+    def __init__(
+        self, directory: str = None, retry_sleep_time: int = 3, max_retry: int = 3
+    ):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.suffix = ".params"
+        self.suffix = ".pkl"
+        self.retry_sleep_time = retry_sleep_time
+        self.max_retry = max_retry
 
     def get(self, key, default=None):
         success_flag_file = self._get_success_flag_file(key)
-        patience = 3
+        patience = self.max_retry
         while not success_flag_file.exists():
             print(f"\nwaiting for success flag of {key}")
-            time.sleep(3)
+            time.sleep(self.retry_sleep_time)
             patience -= 1
             if patience == 0:
                 return default
