@@ -2,38 +2,37 @@ A Flower ([flwr](https://flower.dev/)) extension, to enable peer-to-peer federat
 
 ## Usage for tensorflow
 
-- Step 1: Create and configure a callback `FlwrFederatedCallback` and use it in the `keras.Model.fit()`.
-- Step 2: no step 2.
-
-## How it works
-
-`flwr_p2p` implements peer2peer variations of `flwr.server.strategy.Strategy`. 
+- Step 1: Create federated `Node`s that use a shared folder to exchange model weights and use a federated strategy (`flwr.server.strategy.Strategy`) to control how the weights are aggregated.
+- Step 2: Create and configure a callback `FlwrFederatedCallback` and use it in the `keras.Model.fit()`.
 
 ```python
-class FlwrFederatedCallback(keras.callbacks.Callback):
-    
-    def __init__(self, node: flwr_p2p.Node, **kwargs):
-        self.node = node
-        ...
+# Create a FL Node that has a strategy and a shared folder.
+from flwr.server.strategy import FedAvg
+from flwr_p2p import AsyncFederatedNode, S3Folder
 
-    def model_to_flwr_parameters(self, model: keras.Model):
-        ...
+strategy = FedAvg()
+shared_folder = S3Folder(directory="mybucket/experiment1")
+node = AsyncFederatedNode(strategy=strategy, shared_folder=shared_folder)
 
-    def update_model_with_flwr_parameters(self, model: keras.Model, parameters):
-        ...
-    
-    def on_epoch_end(self, ...):
-        # use the P2PStrategy to update the model.
-        # see https://github.com/adap/flower/blob/main/src/py/flwr/server/strategy/fedavg.py
-        current_parameters = self.model_to_flwr_parameters(self.model)
-        new_parameters = self.node.update_parameters(current_parameters)
-        # under the hood, this happens:
-        # fed_parameters = self.node.get_current_parameters()
-        # new_parameters = self.node.aggregated_fit([fed_parameters, new_parameters])
-        self.model = self.update_model_with_flwr_parameters(self.model, new_parameters)
+# Create a keras Callback with the FL node.
+from flwr.keras import FlwrFederatedCallback
+num_examples_per_epoch = steps_per_epoch * batch_size # number of examples used in each epoch
+callback = FlwrFederatedCallback(
+    node,
+    num_examples_per_epoch=num_examples_per_epoch,
+)
 
+# Join the federated learning, by fitting the model with the federated callback.
+model = keras.Model(...)
+model.compile(...)
+model.fit(dataset, callbacks=[callback])
 ```
 
-`flwr_p2p.P2PStrategy` uses `flwr_p2p.Folder` to save states. `flwr_p2p.Folder` is a logical "folder" to hold model checkpoints from FL participants, as well as model parameters produced by the FL strategy. The logic folder can be backed by a storage backend like S3 or mlflow artifacts (which can in turn be backed by S3).
+`flwr_p2p` uses `flwr_p2p.SharedFolder` to save states. `flwr_p2p.Folder` is a logical "folder" to hold model checkpoints from FL participants (nodes), as well as model parameters produced by the FL strategy. The logic folder can be backed by a storage backend like S3 or mlflow artifacts (which can in turn be backed by S3).
 
+The asynchronous FL node does not wait to sync with other nodes. It takes the latest
+checkpoints from other nodes and performs the aggregation according to the specified strategy.
 
+### Experiment with different strategies
+
+To make it easier to experimemt with different strategies, we provide utility classes like `flwr.keras.example.FederatedLearningTestRun`. This allows you to configure the dataset partition, strategy and concurrency. Please use this as an example to develop your own experiments.
