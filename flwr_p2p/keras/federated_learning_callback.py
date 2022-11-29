@@ -1,5 +1,5 @@
 from tensorflow import keras
-from src.federated_node.async_federated_node import AsyncFederatedNode
+from flwr_p2p.federated_node.async_federated_node import AsyncFederatedNode
 from flwr.common import (
     NDArrays,
     Parameters,

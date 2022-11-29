@@ -10,7 +10,7 @@ from flwr.common import (
 )
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import Strategy
-from src.shared_folder.base_folder import SharedFolder
+from flwr_p2p.shared_folder.base_folder import SharedFolder
 
 
 LOGGER = logging.getLogger(__name__)
