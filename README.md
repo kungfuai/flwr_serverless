@@ -1,5 +1,11 @@
 A Flower ([flwr](https://flower.dev/)) extension, to enable peer-to-peer federated learning.
 
+## Install
+
+```
+pip install https://github.com/kungfuai/flwr_p2p.git
+```
+
 ## Usage for tensorflow
 
 - Step 1: Create federated `Node`s that use a shared folder to exchange model weights and use a federated strategy (`flwr.server.strategy.Strategy`) to control how the weights are aggregated.
