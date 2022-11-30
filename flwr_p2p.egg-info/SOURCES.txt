@@ -1,9 +1,0 @@
-README.md
-setup.py
-flwr_p2p/__init__.py
-flwr_p2p.egg-info/PKG-INFO
-flwr_p2p.egg-info/SOURCES.txt
-flwr_p2p.egg-info/dependency_links.txt
-flwr_p2p.egg-info/not-zip-safe
-flwr_p2p.egg-info/requires.txt
-flwr_p2p.egg-info/top_level.txt
