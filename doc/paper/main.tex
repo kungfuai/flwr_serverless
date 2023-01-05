@@ -1,0 +1,417 @@
+%% arara directives
+% arara: xelatex
+% arara: bibtex
+% arara: xelatex
+% arara: xelatex
+
+% From https://github.com/brenhinkeller/preprint-template.tex
+
+\RequirePackage[2020-02-02]{latexrelease}
+%\documentclass{article} % One-column default
+\documentclass[twocolumn, switch]{article} % Method A for two-column formatting
+
+\usepackage{preprint}
+
+%% Math packages
+\usepackage{amsmath, amsthm, amssymb, amsfonts}
+
+%% Bibliography options
+\usepackage[numbers,square]{natbib}
+\bibliographystyle{unsrtnat}
+%\usepackage{natbib}
+%\bibliographystyle{Geology}
+
+%% General packages
+\usepackage[utf8]{inputenc}	% allow utf-8 input
+\usepackage[T1]{fontenc}	% use 8-bit T1 fonts
+\usepackage{xcolor}		% colors for hyperlinks
+\usepackage[colorlinks = true,
+            linkcolor = purple,
+            urlcolor  = blue,
+            citecolor = cyan,
+            anchorcolor = black]{hyperref}	% Color links to references, figures, etc.
+\usepackage{booktabs} 		% professional-quality tables
+\usepackage{nicefrac}		% compact symbols for 1/2, etc.
+\usepackage{microtype}		% microtypography
+\usepackage{lineno}		% Line numbers
+\usepackage{float}			% Allows for figures within multicol
+%\usepackage{multicol}		% Multiple columns (Method B)
+
+\usepackage{lipsum}		%  Filler text
+\usepackage{listings}   % Code blocks and syntax highlighting
+\usepackage{pifont}     % For creating circles with numbers in them
+\usepackage{algorithm2e} % For drawing algorithms
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{codestyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,                         
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+}
+
+\lstset{
+  basicstyle=\ttfamily,
+  columns=fullflexible,
+  frame=single,
+  xleftmargin=1.8em,
+  breaklines=true,
+  postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space},
+  style=codestyle
+}
+
+ %% Special figure caption options
+\usepackage{newfloat}
+\DeclareFloatingEnvironment[name={Supplementary Figure}]{suppfigure}
+\usepackage{sidecap}
+\sidecaptionvpos{figure}{c}
+
+% Section title spacing  options
+\usepackage{titlesec}
+\titlespacing\section{0pt}{12pt plus 3pt minus 3pt}{1pt plus 1pt minus 1pt}
+\titlespacing\subsection{0pt}{10pt plus 3pt minus 3pt}{1pt plus 1pt minus 1pt}
+\titlespacing\subsubsection{0pt}{8pt plus 3pt minus 3pt}{1pt plus 1pt minus 1pt}
+
+% ORCiD insertion
+\usepackage{tikz,xcolor,hyperref}
+
+\definecolor{lime}{HTML}{A6CE39}
+\DeclareRobustCommand{\orcidicon}{
+	\begin{tikzpicture}
+	\draw[lime, fill=lime] (0,0) 
+	circle [radius=0.16] 
+	node[white] {{\fontfamily{qag}\selectfont \tiny ID}};
+	\draw[white, fill=white] (-0.0625,0.095) 
+	circle [radius=0.007];
+	\end{tikzpicture}
+	\hspace{-2mm}
+}
+\foreach \x in {A, ..., Z}{\expandafter\xdef\csname orcid\x\endcsname{\noexpand\href{https://orcid.org/\csname orcidauthor\x\endcsname}
+			{\noexpand\orcidicon}}
+}
+% Define the ORCID iD command for each author separately. Here done for two authors.
+\newcommand{\orcidauthorA}{0000-0000-0000-0001}
+\newcommand{\orcidauthorB}{0000-0000-0000-0002}
+\newcommand{\orcidauthorC}{0000-0000-0000-0003}
+\newcommand{\orcidauthorD}{0000-0000-0000-0004}
+
+%%%%%%%%%%%%%%%%   Title   %%%%%%%%%%%%%%%%
+\title{Flwr P2P: Serverless Federated Learning}
+
+% Add watermark with submission status
+\usepackage{xwatermark}
+% Left watermark
+\newwatermark[firstpage,color=gray!60,angle=90,scale=0.32, xpos=-4.05in,ypos=0]{\href{https://doi.org/}{\color{gray}{Publication doi}}}
+% Right watermark
+\newwatermark[firstpage,color=gray!60,angle=90,scale=0.32, xpos=3.9in,ypos=0]{\href{https://doi.org/}{\color{gray}{Preprint doi}}}
+% Bottom watermark
+\newwatermark[firstpage,color=gray!90,angle=0,scale=0.28, xpos=0in,ypos=-5in]{*Equal contribution. Correspondence: \texttt{zz@kungfu.ai}}
+
+%%%%%%%%%%%%%%%  Author list  %%%%%%%%%%%%%%%
+\usepackage{authblk}
+\renewcommand*{\Authfont}{\bfseries}
+\author[1\thanks{\tt{}}]{Sanjeev V. Namjoshi}
+\author[2]{Zhangzhang Si}
+
+\affil[1,2]{KUNGFU.AI}
+% \affil[2]{KUNGFU.AI}
+
+% Option 2 for author list
+% \author{
+%  Sanjeev Namjoshi\thanks{thanks}
+%  \texttt{} \\
+%  %% examples of more authors
+% \AND
+% Zhangzhang Si \\
+%  Department of Electrical Engineering\\
+%  Mount-Sheikh University\\
+%  Santa Narimana, Levand \\
+%  \texttt{stariate@ee.mount-sheikh.edu} \\
+%  \AND
+%  Coauthor \\
+%  Affiliation \\
+%  Address \\
+%  \texttt{email} \\
+%  % etc.
+% }
+
+%%%%%%%%%%%%%%    Front matter    %%%%%%%%%%%%%%
+\begin{document}
+
+\twocolumn[ % Method A for two-column formatting
+  \begin{@twocolumnfalse} % Method A for two-column formatting
+  
+\maketitle
+
+\begin{abstract}
+Federated learning is becoming increasingly relevant and popular as we witness a surge in data collection and storage of personally identifiable information. Alongside these developments there have been many proposals from governments around the world to provide more protections for individuals' data and a heightened interest in data privacy measures. As deep learning continuous to be come more relevant in new and existing domains, it is vital to develop strategies like federated that can effectively train data from different sources, such as edge devices, without compromising security and privacy. Recently, the Flower (\texttt{Flwr}) Python package was introduced to provide a scalable, flexible, and easy-to-use approach to implementing federated learning. However, to date Flower is only able to run synchronous federated learning which can be costly and time-consuming to run because the process is bottlenecked by models that are slow to train. Here we introduce \texttt{FlwrP2P}, a wrapper around the Flower package that extends its functionality to allow for asynchronous federated learning with minimal modification to its design paradigm. Furthermore, our approach to asynchronous federated learning effectively allows the process to run in a "serverless" mode which should increase the domains of application and accessibility of its use. Here present the design details, usage, and a series of experiments to demonstrate the applicability of our approach on standard benchmark federated learning datasets. Overall, we believe that our approach will decrease federated training time/cost as well as provide an easier way to implement and experiment with federated learning systems.
+\end{abstract}
+%\keywords{First keyword \and Second keyword \and More} % (optional)
+\vspace{0.35cm}
+
+  \end{@twocolumnfalse} % Method A for two-column formatting
+] % Method A for two-column formatting
+
+%\begin{multicols}{2} % Method B for two-column formatting (doesn't play well with line numbers), comment out if using method A
+
+
+%%%%%%%%%%%%%%%  Main text   %%%%%%%%%%%%%%%
+% \linenumbers
+
+\section{Introduction}
+
+Over the last few years, the decreased cost of data storage and increased usage of apps and digital technologies have led to an unprecedented surge in data collection and availability. This data collection revolution has proceeded alongside numerous advances in deep learning which has provided a usage for this data for a large variety of applications. The output predictions from these statistical models has become increasingly sophisticated and continues to have a direct impact on both society and the global economy. Notably, much of this data contains personal information, often collected directly from individuals and inferred from their behavioral patterns, or directly recorded in the form of digital healthcare data.
+
+The widespread usage of this data in deep learning technologies has induced a greater interest and concern for data protection and privacy and a call for the codification of such protections under a legal framework. Recently, the European Union has enacted the General Data Protection Regulation (GDPR) \cite{gdpr, gpdr_url} which specifies the legality of personal data collection and usage as well as establishes the control of personal data as a human right. In the healthcare domain, collected medical data that contains sensitive information, electronic health records, is protected under the Health Insurance Portability and Accountability Act (HIPPA) (ref) in the United States which restricts and prohibits disclosure of this information to third parties without patient consent. 
+
+Deep learning model training tasks generally require the aggregation of disparate data sources into one centralized location so it is fully accessible by the model. For example, one may wish to train a model using edge-devices belonging to individual users which would necessitate combining this data together in one location. In the healthcare domain, medical images and patient clinical data, which may exist in different data centers, may need to be pooled to successfully train models representative of the general population. 
+
+In response to the recent concerns around data privacy, and the legal requirements around protecting the interests of patients and end-users, researchers at Google introduced the federated learning framework \cite{fed_1, fed_2}. Federated learning addressed many of the data privacy and security concerns by allowing multiple datasets to be trained while located in separate locations so that they cannot be aggregated together. The local machines that contain both the data and the model are known as \textit{clients} and they connect to a central \textit{server} to aggregate weights to be used in the next round of training. Such decentralized training aims to solve the problems of data privacy and has been successfully applied to a number of different domains including applications in edge computing, such as internet-of-things networks \cite{fed_iot}, wireless computing \cite{fed_wireless}, and within the healthcare domain \cite{fed_healthcare}. 
+
+The open-source Flower Python package \cite{flower} was recently introduced to provide an federated learning capabilities to a variety of different modeling frameworks and enable running on edge devices. Flower solves a number of different challenges to training federated models and running them in a production environment. Recently, Flower has been popular choice as a federated learning framework due to the simplicity of its lightweight design and flexibility. However, one challenge that has not yet been addressed is allowing Flower to run training asynchronously. At present, the Flower framework requires all connected clients to send their weights to the server before aggregation. Consequently, the next federated training round is delayed until all models have successfully completed their local epochs.
+
+\begin{figure*}
+    \centering
+    \includegraphics{graphics/async_fl.pdf}
+    \caption{Synchronous versus asynchronous federated learning. In synchronous federated learning (left panel), a sampled set of clients begin multiple local training rounds. Upon completion, the client waits until the other clients finish. When all clients have finished, the server aggregates the weights and training continues. In our approach to asynchronous federated learning (right panel), the clients begin a single local training epoch and check a remote weight store for any weights deposited by any client that finished previously. It then downloads these weights locally, aggregates them, and continues training. Figure adapted from \cite{fed_async1}.}
+    \label{fig:syncasync}
+\end{figure*}
+
+To address this issue, we introduce \texttt{Flwr P2P} a wrapper around the Flower framework that extends its capabilities to allow for both synchronous and asynchronous forms of Federated Learning without altering its core use pattern. Furthermore, the changes we make effectively allow Flower to be run "serverless" in the sense that weight aggregation occurs on the client side asynchronously, updating from any accessible remote weight storage directory. Thus, our approach inherits all of the functionality and convenience of Flower while also adding a new feature. Herein, we describe the architectural changes made to the federated learning workflow and the Flower package along with the asynchronous learning strategy that we employ. Finally, we demonstrate the results on some federated benchmark datasets. Our results show that asynchronous federated learning is robust and in specific situations can significantly speed up the federated training without sacrificing model performance.  
+
+\section{Federated Learning}
+% \label{sec:federated-learning}
+
+Federated learning is a decentralized learning strategy that allows multiple devices or machines, with separate, private datasets, to be trained together without the datasets ever being storted together in one central location. Each device that participates in federated learning is known as a \textit{client} which undergoes a number of \textit{local rounds} of training on its local dataset. After the client finishes its local rounds of training, it sends its current weights to a centralized \textit{server} which stores the weights. All connected clients send their weights to this central server where they are averaged together by some federated aggregation \textit{strategy}. After aggregation, each client receives the newly aggregated weights and resumes training local rounds to update these weights.
+
+Federated learning produces a unique scenario in that there are usually a large number of clients training at one time but the data is likely to not be independent and identically distributed (\textit{i.i.d.}). Consequently, there are many types of federated aggregation strategies available aimed at dealing with these issues. In the base federated averaging strategy, known as FedAvg \cite{fed_2}, a random fraction of clients $C$ is chosen out of $K$ total clients where the client is indexed by $k$. For each global federated learning round $t=1, 2, \dots$, each randomly sampled client $k$ runs their model in parallel on their local datasets updating their local weights. The shared model weights $w_t$ are then updated at the next time step according to
+
+\begin{equation}
+    w_{t+1} \leftarrow \sum_{k=1}^K \frac{n_k}{n} w^k_{t+1}, 
+\end{equation}
+
+where $n$ denotes the index of the data point for client $k$. Thus, according to \cite{fed_2}, the FedAvg algorithm utilizes the general federated objective function,
+
+\begin{equation}
+    \min_{w \in \mathbb{R}^d},  \hspace{5mm} \text{where} \hspace{5mm} f(w) := \frac{1}{n} \sum_{i=1}^n f_i(w),
+\end{equation}
+
+where, $f_i(w)$ could be the typical supervised learning objective function $\ell(x_i, y_i; w)$ for each input/output sample pair in the dataset, indexed by $i$ with parameters $w$. In summary, FedAvg represents the average over all loss functions of the model parameters of each client. Many other federated strategies have been recently introduced and all are currently implemented in the Flower package \cite{flower}.
+
+\paragraph{Synchronous versus asynchronous federated learning}
+
+In most cases, federated learning is performed in synchronous fashion (Figure 1, left panel). Each client submits its weights to the server after completing a set number of local training rounds on its private data. The synchronization of all of the client's weights occurs once the last client to finish local training submits its weights to the server. Thus, synchronous federated learning implies that the overall training process is bottlenecked by the slowest client (\textit{stragglers}).
+
+In order to address these concerns, an alternative approach is \textit{asynchronous} federated training (Figure 1, right panel).  A number of asynchronous federated learning strategies have been developed and implemented. The original FedAsync \cite{fedasync} strategy utilizes a mixing hyperparameter to control a client's contribution to the global aggregation based on its "staleness" (how slow the client is to complete its local training rounds). Other approaches have also used a similar staleness model including ASO-Fed \cite{asofed} and FedSa \cite{fedsa}. FedBuff \cite{fedbuff, fedbuff2} utilizes a buffered asychronous aggregation approach which attempts to improve on secure aggregation protocols. The server selects a fraction of clients and aggregates them securely before updating. SAFA \cite{safa} uses a different approach in which a threshold of finished clients must be met before aggregation proceeds. PORT \citep{fed_async1} introduces another asynchronous update method which tries to balance between the staleness and minimum finished client threshold approaches by forcing stale clients to report their weights for aggregation after a threshold is met. Finally, a semi-sychronous federated learning paradigm has been explored in \cite{semi}.
+
+\section{Serverless federated learning with \texttt{FlwrP2P}}
+
+The \texttt{Flwr} package \cite{flower} has recently been developed to allow support for running federated learning on edge devices. In the Flower paper, the authors describe its design goals which are to be scalable, client-agnostic, communication-agnostic, privacy agnostic, and flexible. Flower provides an easy to use package in which many standard machine learning frameworks (\texttt{TensorFlow}, \texttt{PyTorch}, \texttt{Scikit-learn} etc.) can be made into a federated client by wrapping a \texttt{fit} function. Despite these advantages, to date Flower does not offer support for asynchronous federated learning. Furthermore, we encountered a number of difficulties managing multiple servers running in containers on cloud platforms that were launched for each experiment we performed (healthcare setting).
+
+Here we introduce and provide an overview of \texttt{FlwrP2P}, our solution to expanding Flower's capabilities to include asynchronous federated learning. We sought to develop the package with the following design principles in mind:
+
+\begin{itemize}
+    \item \textbf{Minimal modification}: We aim to retain the basic design goals and principles of the Flower package with minimal modification to its functionality or existing code and without interfering with its core design.
+    \item \textbf{Serverless implementation}: Due to the numerous difficulties we encountered with launching and maintaining federated learning servers, we aim to provide asynchronous federated learning that can run in a \textit{serverless} fashion.
+    \item \textbf{Flexibility}: Much like the Flower package, we aim for asynchronous federated learning to be compatible with machine learning frameworks such that it can be activated through callback functionality.
+\end{itemize}
+
+\paragraph{Design}
+
+\begin{figure}
+    \centering
+    \includegraphics{graphics/flower_async_detail.pdf}
+    \caption{A detailed view of the asynchronous federated learning design in \texttt{FlwrP2P} showing two clients interacting with the weight store. In \ding{172}, Client A begins its first epoch. Upon completion, in \ding{173} it transfers its weights to the weight store. In \ding{174} the client downloads any available weights and aggregates them locally with its own weights according to a federated aggregation strategy. Client B follows a similar structure but in \ding{175} we see that it takes longer to train one epoch. Therefore, a different set of weights may be available for aggregation than Client A depending on the other clients that have deposited their weights in the weight store. With many clients connecting, the weight store will contain a "running average" of the global weights proportional to the fastest clients that have finished epochs.}
+    \label{fig:async-detail}
+\end{figure}
+
+In a typical synchronous federated learning experiment, each client runs for a number of local training training epochs before it sends its weights to a central server for aggregation. All participating clients are expected to submit their weights before the server aggregates the weights and broadcasts the new weights back to the clients. Our asynchronous implementation follows a different sequence of events (Figure 2). First, each client only complete a single local training epoch. Then the client sends its weights to a remote \textit{weight store} and checks with the server to see if another client has recently deposited weights to this shared folder. If so, it downloads these weights and then aggregates them on the \textit{client side} and continuous training. The effect of this process is that the client effectively becomes serverless in the sense that the aggregation is performed by the client and not externally. In this system, the weight store is intended to be any remote folder that is accessible by the client machine, for example a bucket/blob location on a cloud service provider.
+
+An interesting side effect of this kind of implementation is that each client may implement its own aggregation strategy. This opens up a number of new federating training possibilities and allow further customization, especially for the stragglers who may average weights less frequently due to fewer connections to the shared folder. Furthermore this setup also implies that there is no "federated round". There are only local training rounds on each client with continuous weight updates between epochs if available. 
+
+To run `FlwrP2P`, the user is expected to specify the following for each client:
+
+\begin{itemize}
+    \item The intended federated aggregation strategy to be used by the client.
+    \item The location of the shared folder, for example, and AWS S3 bucket URI.
+    \item The federated learning \textit{node} which has a specific strategy and shared folder.
+    \item The \texttt{FlwrFederatedCallback} which will be passed to the framework's callback.
+    \item The model \texttt{compile} and \texttt{fit} functions.
+\end{itemize}
+
+For example, with TensorFlow, the following is sufficient to launch and experiment with a single client. 
+
+\begin{lstlisting}[language=Python]
+# Create a FL Node that has a strategy and a shared folder.
+from flwr.server.strategy import FedAvg
+from flwr_p2p import AsyncFederatedNode, S3Folder
+
+strategy = FedAvg()
+shared_folder = S3Folder(directory="mybucket/experiment1")
+node = AsyncFederatedNode(strategy=strategy, shared_folder=shared_folder)
+
+# Create a keras Callback with the FL node.
+from flwr.keras import FlwrFederatedCallback
+num_examples_per_epoch = steps_per_epoch * batch_size # number of examples used in each epoch
+callback = FlwrFederatedCallback(
+    node,
+    num_examples_per_epoch=num_examples_per_epoch,
+)
+
+# Join the federated learning, by fitting the model with the federated callback.
+model = keras.Model(...)
+model.compile(...)
+model.fit(dataset, callbacks=[callback])
+\end{lstlisting}
+
+As more clients connect, they will all automatically update their weights, asynchronously, based on the presence of weights in the weight store.
+
+\paragraph{Asynchronous update algorithm}
+
+As a first proof of concept, we present the pseudocode for an asynchronous version of the original \texttt{FedAvg} algorithm called \texttt{FedAvgAsyc} (Algorithm 1). The notation for this algorithm follows the same notation from \cite{fed_2} which describes the original \texttt{FedAvg} algorithm in detail. Note that in this implementation there is no server so all computations occur on the client side. First, all clients begin running in parallel with weights initialized at $w_0$. Then each client in $K$, indexed by $k$, runs a training epoch $i$ on the client side up to $E$ epochs. During this epoch, sampling occurs to see if this client will learn during this epoch. The probability of being sampled is controlled by the parameter $C$ (see below for more details on the meaning of sampling in this context). If a client is sampled, then it performs the \texttt{ClientUpdate} which entails computing the weight updates $w^k_i$ for client $k$ at epoch $i$ across all mini-batches $\mathcal{B}$, where $\mathcal{P}_k$ denotes the data point indexes of each client $k$. This weight is passed to the \texttt{WeightUpdate} procedure which pushes the weights to the weight store. The \textit{push} mechanism here pushes the weights using Flower for communication to the remote weight store. The client then performs a check to see if the remote server has changed state (as reported by a unique hash). The latest weights currently deposited by other asynchronous nodes would be contained here. These weights are then \textit{pulled} from the weight store to the local client in the array $\omega$. Client $k$ adds its weights $w^k$ to $\omega$ and then the weights are averaged according to $w_{i+1} \gets \sum_{k=1}^K \frac{n_k}{n} \omega[k]$ which become the new weight initialization for the next epoch by client $k$. If the client pulls weights from the weight store and finds that no weights are available, it resumes training on its current weights.
+
+\RestyleAlgo{ruled}
+\begin{algorithm}
+    \caption{\texttt{FedAvgAsync}}\label{alg:afedavg}
+    \SetKwBlock{DoParallel}{in parallel do}{end}
+    \SetKwProg{Func}{Function}{:}{}
+    \SetKwFunction{ClientUpdate}{ClientUpdate}
+    \SetKwFunction{WeightUpdate}{WeightUpdate}
+    $\text{initialize } w_0$\;
+    \DoParallel{
+        \ForEach{client $k$}{
+            \ForEach{epoch $i $ from $1 $ to $ E$}{
+                \If{$random[0,1] < C$}{
+                    $w^k_i \gets \text{ClientUpdate}(k, w_i)$
+                    $w^k_{i+1} \gets \text{WeightUpdate}(w^k_i)$
+                }
+            }
+        }
+    }
+    
+    \Func{\ClientUpdate{$k$, $w_i$}}{
+        $\mathcal{B} \gets (\text{split} \hspace{1mm} \mathcal{P}_k \hspace{1mm} \text{into batches of size} \hspace{1mm} B)$\;
+        \ForEach{batch $b \in \mathcal{B} $}{
+            $w \gets w - \eta \nabla \ell(w; b)$
+        }
+        \Return $w$
+    }
+    \Func{\WeightUpdate{w^k}}{
+        $\text{Push} \hspace{1mm} w^k \hspace{1mm} \text{to weight store}$\;
+        $\text{Pull} \hspace{1mm} \omega \hspace{1mm} \text{from weight store}$\;
+        $\omega[k] \gets w^k$\;
+        $w_{i+1} \gets \sum_{k=1}^K \frac{n_k}{n} \omega[k]$\;
+        \Return $w_{i+1}$
+    }
+\end{algorithm}
+
+\paragraph{Differences between synchronous and asynchronous \texttt{FedAvg}}
+
+There are a few key differences between the original $\texttt{FedAvg}$ algorithm and $\texttt{FedAvgAsync}$. First, since all computations take place asynchronously and simultaneously in parallel there is no need for a global federated round $t = 1,2, \dots$. Second, since clients either upload their weights after an epoch or they do not, there is no notion of a "local update"; all updates are local in this algorithm. Third, the notion of "sampling" must be handled differently because there is no global round over which sampling applies. In this case, sampling may be handled in one of two ways. Non-sampled clients can either wait for a set amount of time before resuming training or they can continue training without ever completing the \texttt{WeightUpdate} step. Fourth, due to the serverless nature of this algorithm, the \texttt{WeightUpdate} step may use a different type of update rule if preferred, opening the doors for other federated aggregation strategies to be utilized. Note that these algorithms could potentially be different for each client.
+
+\paragraph{Synchronous serverless federated learning}
+
+Note that we also provide the functionality to use synchronous federated learning in a serverless fashion. In this case, when clients are attempting to get parameters from other connected nodes, they must weight until all other clients have deposited their weights in the weight store. Then, all clients simultaneously download the weights $\omega$ and aggregate them on the client side. 
+
+\section{Experimental results}
+
+% $m \gets \max(C \cdot K, 1)$\;
+% $S_t \gets (\text{random set of } m \text{ clients})$\;
+
+% More detail on the design. For example, model hashing to keep track of state.
+% Algorithm description
+% Figure showing use and interaction with the Flower standard architecture and ddesign
+% Figure showing detailed view of the aysnchronous implementation
+
+% \paragraph{Paragraph}
+% \lipsum[7]
+
+% \section{Examples of citations, figures, tables, references}
+
+% The documentation for \verb+natbib+ may be found at
+% \begin{center}
+%   \url{http://mirrors.ctan.org/macros/latex/contrib/natbib/natnotes.pdf}
+% \end{center}
+% Of note is the command \verb+\citet+, which produces citations
+% appropriate for use in inline text.  For example,
+% \begin{verbatim}
+%    \citet{hasselmo} investigated\dots
+% \end{verbatim}
+% produces
+% \begin{quote}
+%   Hasselmo, et al.\ (1995) investigated\dots
+% \end{quote}
+
+% \begin{center}
+%   \url{https://www.ctan.org/pkg/booktabs}
+% \end{center}
+
+
+% \subsection{Figures}
+% \lipsum[10] 
+% See Figure \ref{fig:fig1}. Here is how you add footnotes. %\footnote{Sample of the first footnote.}
+% \lipsum[11] 
+
+% \begin{figure}[H]
+%   \centering
+%   \fbox{\rule[-.5cm]{4cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+%   \caption{Sample figure caption.}
+%   \label{fig:fig1}
+% \end{figure}
+
+% \subsection{Tables}
+% \lipsum[12]
+% See awesome Table \ref{tab:table}.
+
+% \begin{table}[H]
+%  \caption{Sample table title}
+%   \centering
+%   \begin{tabular}{lll}
+%     \toprule
+%     \multicolumn{2}{c}{Part}                   \\
+%     \cmidrule(r){1-2}
+%     Name     & Description     & Size ($\mu$m) \\
+%     \midrule
+%     Dendrite & Input terminal  & $\sim$100     \\
+%     Axon     & Output terminal & $\sim$10      \\
+%     Soma     & Cell body       & up to $10^6$  \\
+%     \bottomrule
+%   \end{tabular}
+%   \label{tab:table}
+% \end{table}
+
+% \subsection{Lists}
+% \begin{itemize}
+% \item Lorem ipsum dolor sit amet
+% \item consectetur adipiscing elit. 
+% \item Aliquam dignissim blandit est, in dictum tortor gravida eget. In ac rutrum magna.
+% \end{itemize}
+
+%%%%%%%%%%%% Supplementary Methods %%%%%%%%%%%%
+%\footnotesize
+%\section*{Methods}
+
+%%%%%%%%%%%%% Acknowledgements %%%%%%%%%%%%%
+%\footnotesize
+%\section*{Acknowledgements}
+
+%%%%%%%%%%%%%%   Bibliography   %%%%%%%%%%%%%%
+\normalsize
+\bibliography{references}
+
+%%%%%%%%%%%%  Supplementary Figures  %%%%%%%%%%%%
+%\clearpage
+
+%%%%%%%%%%%%%%%%   End   %%%%%%%%%%%%%%%%
+%\end{multicols}  % Method B for two-column formatting (doesn't play well with line numbers), comment out if using method A
+\end{document}
