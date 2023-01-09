@@ -1,3 +1,4 @@
 pytest
 s3fs
 moto
+wandb
