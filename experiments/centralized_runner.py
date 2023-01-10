@@ -4,12 +4,15 @@ from wandb.keras import WandbCallback
 
 from flwr_p2p.keras.example import CreateMnistModel
 
-from experiments.experimental_model import ExperimentModel
+from experiments.base_experimental_model import BaseExperimentRunner
 
 
-class Centralized_Model(ExperimentModel):
+class CentralizedRunner(BaseExperimentRunner):
     def __init__(self, config, dataset):
         super().__init__(config, dataset)
+
+    def run(self):
+        self.train_and_eval()
 
     def train_and_eval(self):
         image_size = self.x_train.shape[1]

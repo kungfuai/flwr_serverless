@@ -1,7 +1,9 @@
 import wandb
+
+# import set_random_seed
 from tensorflow.keras.utils import set_random_seed
 
-from experiments.centralized_model import CentralizedRunner
+from experiments.federated_learning_runner import FederatedLearningRunner
 
 # main function
 if __name__ == "__main__":
@@ -16,11 +18,10 @@ if __name__ == "__main__":
     }
 
     dataset = "mnist"
+    strategy = "fedavg"
 
     # federeated run w/ FedAvg
-    wandb.init(
-        project="test-project", entity="flwr_p2p", name="centralized", config=config
-    )
-    centralized_runner = CentralizedRunner(config, dataset)
-    centralized_runner.run()
+    wandb.init(project="test-project", entity="flwr_p2p", name="federated_avg_asnyc")
+    federated_learning_runner = FederatedLearningRunner(config, dataset, strategy)
+    federated_learning_runner.run()
     wandb.finish()
