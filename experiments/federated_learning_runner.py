@@ -1,24 +1,29 @@
-import numpy as np
+from concurrent.futures import ThreadPoolExecutor
+from typing import List, Any
+from tensorflow import keras
 from wandb.keras import WandbCallback
 
-from flwr.server.strategy import Strategy
 from flwr.server.strategy import FedAvg, FedAdam, FedAvgM
-from flwr.common import (
-    Parameters,
-    ndarrays_to_parameters,
-    parameters_to_ndarrays,
-)
+
 
 from flwr_p2p.federated_node.async_federated_node import AsyncFederatedNode
+from flwr_p2p.federated_node.sync_federated_node import SyncFederatedNode
 from flwr_p2p.shared_folder.in_memory_folder import InMemoryFolder
-from flwr_p2p.keras.example import CreateMnistModel
+from flwr_p2p.keras.federated_learning_callback import FlwrFederatedCallback
 
-from experiments.base_experimental_model import BaseExperimentRunner
+
+from experiments.base_experiment_runner import BaseExperimentRunner
 
 
 class FederatedLearningRunner(BaseExperimentRunner):
-    def __init__(self, config, dataset, strategy):
-        super().__init__(config, dataset)
+    def __init__(self, config, num_nodes, federated_type, use_async, dataset, strategy):
+        super().__init__(config, num_nodes, dataset)
+        self.federated_type = federated_type
+        self.storage_backend: Any = InMemoryFolder()
+        self.use_async_node = use_async
+        self.num_rounds = self.epochs  # ??? not sure what this is
+        self.test_steps = self.steps_per_epoch  # ??? not sure what this is
+
         if strategy == "fedavg":
             self.strategy = FedAvg()
         elif strategy == "fedavgm":
@@ -29,100 +34,190 @@ class FederatedLearningRunner(BaseExperimentRunner):
             raise ValueError("Strategy not supported")
 
     def run(self):
-        self.fed_async_train_and_eval()
-
-    def fed_async_train_and_eval(self):
-        image_size = self.x_train.shape[1]
-        # x_train.shape: (60000, 28, 28)
-        # print(y_train.shape) # (60000,)
-        # Normalize
-
-        x_train = np.reshape(self.x_train, [-1, image_size, image_size, 1])
-        x_test = np.reshape(self.x_test, [-1, image_size, image_size, 1])
-        x_train = x_train.astype(np.float32) / 255
-        x_test = x_test.astype(np.float32) / 255
-
+        self.models = self.create_models()
         (
-            partitioned_x_train,
-            partitioned_y_train,
-        ) = self.split_training_data_into_paritions(
-            x_train, self.y_train, num_partitions=2
-        )
-        x_train_partition_1 = partitioned_x_train[0]
-        y_train_partition_1 = partitioned_y_train[0]
-        x_train_partition_2 = partitioned_x_train[1]
-        y_train_partition_2 = partitioned_y_train[1]
+            self.partitioned_x_train,
+            self.partitioned_y_train,
+            self.x_test,
+            self.y_test,
+        ) = self.create_partitioned_datasets()
+        self.train_federated_models()
+        self.evaluate()
 
-        # Using generator for its ability to resume. This is important for federated
-        # learning, otherwise in each federated round,
-        # the cursor starts from the beginning every time.
-        def train_generator1(batch_size):
-            while True:
-                for i in range(0, len(x_train_partition_1), batch_size):
-                    yield x_train_partition_1[i : i + batch_size], y_train_partition_1[
-                        i : i + batch_size
-                    ]
+    def train_federated_models(
+        self,
+    ) -> List[keras.Model]:
+        if self.federated_type == "pseudo-concurrent":
+            print("Training federated models pseudo-concurrently.")
+            return self._train_federated_models_pseudo_concurrently(self.models)
+        elif self.federated_type == "concurrent":
+            print("Training federated models concurrently")
+            return self._train_federated_models_concurrently(self.models)
+        else:
+            print("Training federated models sequentially")
+            return self._train_federated_models_sequentially(self.models)
 
-        def train_generator2(batch_size):
-            while True:
-                for i in range(0, len(x_train_partition_2), batch_size):
-                    yield x_train_partition_2[i : i + batch_size], y_train_partition_2[
-                        i : i + batch_size
-                    ]
+    def _train_federated_models_concurrently(
+        self, model_federated: List[keras.Model]
+    ) -> List[keras.Model]:
+        nodes = self.create_nodes()
+        num_partitions = self.num_nodes
 
-        # federated learning
-        model_client1 = CreateMnistModel(lr=0.0004).run()
-        model_client2 = CreateMnistModel(lr=0.0004).run()
+        callbacks_per_client = [
+            FlwrFederatedCallback(
+                nodes[i],
+                x_test=self.x_test,
+                y_test=self.y_test,
+                num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
+            )
+            for i in range(num_partitions)
+        ]
 
-        num_federated_rounds = self.config["epochs"]
+        train_loaders = [
+            self.get_train_dataloader_for_node(i) for i in range(num_partitions)
+        ]
+
+        with ThreadPoolExecutor(max_workers=self.num_nodes) as ex:
+            futures = []
+            for i_node in range(self.num_nodes):
+                # time.sleep(0.5 * i_node)
+                future = ex.submit(
+                    model_federated[i_node].fit,
+                    x=train_loaders[i_node],
+                    epochs=self.num_rounds,
+                    steps_per_epoch=self.steps_per_epoch,
+                    callbacks=[WandbCallback(), callbacks_per_client[i_node]],
+                    validation_data=(self.x_test, self.y_test),
+                    validation_steps=self.test_steps,
+                    validation_batch_size=self.batch_size,
+                )
+                futures.append(future)
+            train_results = [future.result() for future in futures]
+
+        return model_federated
+
+    def _train_federated_models_pseudo_concurrently(
+        self, model_federated: List[keras.Model]
+    ) -> List[keras.Model]:
+        nodes = self.create_nodes()
+        num_partitions = self.num_nodes
+        callbacks_per_client = [
+            FlwrFederatedCallback(
+                nodes[i],
+                num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
+                x_test=self.x_test[: self.test_steps * self.batch_size, ...],
+                y_test=self.y_test[: self.test_steps * self.batch_size, ...],
+            )
+            for i in range(num_partitions)
+        ]
+
+        num_federated_rounds = self.num_rounds
         num_epochs_per_round = 1
-        train_loader_client1 = train_generator1(batch_size=self.config["batch_size"])
-        train_loader_client2 = train_generator2(batch_size=self.config["batch_size"])
+        train_loaders = [
+            self.get_train_dataloader_for_node(i) for i in range(num_partitions)
+        ]
 
-        storage_backend = InMemoryFolder()
-        node1 = AsyncFederatedNode(
-            shared_folder=storage_backend, strategy=self.strategy
-        )
-        node2 = AsyncFederatedNode(
-            shared_folder=storage_backend, strategy=self.strategy
-        )
+        seqs = [[]] * self.num_nodes
+        for i_node in range(self.num_nodes):
+            seqs[i_node] = [
+                (i_node, j + i_node * self.lag) for j in range(num_federated_rounds)
+            ]
+        # mix them up
+        execution_sequence = []
+        for i_node in range(self.num_nodes):
+            execution_sequence.extend(seqs[i_node])
+        execution_sequence = [
+            x[0] for x in sorted(execution_sequence, key=lambda x: x[1])
+        ]
+        print(f"Execution sequence: {execution_sequence}")
+        for i_node in execution_sequence:
+            print("Training node", i_node)
+            model_federated[i_node].fit(
+                x=train_loaders[i_node],
+                epochs=num_epochs_per_round,
+                steps_per_epoch=self.steps_per_epoch,
+                callbacks=[WandbCallback(), callbacks_per_client[i_node]],
+                validation_data=(
+                    self.x_test[: self.test_steps * self.batch_size, ...],
+                    self.y_test[: self.test_steps * self.batch_size, ...],
+                ),
+                validation_steps=self.test_steps,
+                validation_batch_size=self.batch_size,
+            )
+
+            if i_node == 0:
+                print("Evaluating on the combined test set:")
+                model_federated[0].evaluate(
+                    self.x_test[: self.test_steps * self.batch_size, ...],
+                    self.y_test[: self.test_steps * self.batch_size, ...],
+                    batch_size=self.batch_size,
+                    steps=10,
+                )
+
+        return model_federated
+
+    def _train_federated_models_sequentially(
+        self, model_federated: List[keras.Model]
+    ) -> List[keras.Model]:
+        nodes = self.create_nodes()
+        num_partitions = self.num_nodes  # is this needed?
+
+        callbacks_per_client = [
+            FlwrFederatedCallback(
+                nodes[i], num_examples_per_epoch=self.batch_size * self.steps_per_epoch
+            )
+            for i in range(num_partitions)
+        ]
+
+        num_federated_rounds = self.num_rounds
+        num_epochs_per_round = 1
+        train_loaders = [
+            self.get_train_dataloader_for_node(i) for i in range(num_partitions)
+        ]
+
         for i_round in range(num_federated_rounds):
             print("\n============ Round", i_round)
-            model_client1.fit(
-                train_loader_client1,
-                epochs=num_epochs_per_round,
-                steps_per_epoch=self.config["steps_per_epoch"],
-                callbacks=[WandbCallback()],
-            )
-            num_examples = self.config["batch_size"] * self.config["steps_per_epoch"]
-            param_1: Parameters = ndarrays_to_parameters(model_client1.get_weights())
-            updated_param_1 = node1.update_parameters(
-                param_1, num_examples=num_examples
-            )
-            if updated_param_1 is not None:
-                model_client1.set_weights(parameters_to_ndarrays(updated_param_1))
-            else:
-                print("node1 is waiting for other nodes to send their parameters")
-
-            model_client2.fit(
-                train_loader_client2,
-                epochs=num_epochs_per_round,
-                steps_per_epoch=self.config["steps_per_epoch"],
-                callbacks=[WandbCallback()],
-            )
-            num_examples = self.config["batch_size"] * self.config["steps_per_epoch"]
-            param_2: Parameters = ndarrays_to_parameters(model_client2.get_weights())
-            updated_param_2 = node2.update_parameters(
-                param_2, num_examples=num_examples
-            )
-            if updated_param_2 is not None:
-                model_client2.set_weights(parameters_to_ndarrays(updated_param_2))
-            else:
-                print("node2 is waiting for other nodes to send their parameters")
-
+            for i_partition in range(num_partitions):
+                model_federated[i_partition].fit(
+                    train_loaders[i_partition],
+                    epochs=num_epochs_per_round,
+                    steps_per_epoch=self.steps_per_epoch,
+                    callbacks=[WandbCallback(), callbacks_per_client[i_partition]],
+                )
             print("Evaluating on the combined test set:")
-            _, accuracy_federated = model_client1.evaluate(
-                x_test, self.y_test, batch_size=32, steps=self.config["steps_per_epoch"]
+            model_federated[0].evaluate(
+                self.x_test,
+                self.y_test,
+                batch_size=self.batch_size,
+                steps=self.steps_per_epoch,
             )
 
-        print("accuracy_federated", accuracy_federated)
+        return model_federated
+
+    def create_nodes(self):
+        if self.use_async_node:
+            nodes = [
+                AsyncFederatedNode(
+                    shared_folder=self.storage_backend, strategy=self.strategy
+                )
+                for _ in range(self.num_nodes)
+            ]
+        else:
+            nodes = [
+                SyncFederatedNode(
+                    shared_folder=self.storage_backend,
+                    strategy=self.strategy,
+                    num_nodes=self.num_nodes,
+                )
+                for _ in range(self.num_nodes)
+            ]
+        return nodes
+
+    def evaluate(self):
+        for i_node in range(self.num_nodes):
+            loss1, accuracy1 = self.models[i_node].evaluate(
+                self.x_test,
+                self.y_test,
+                batch_size=self.batch_size,
+                steps=self.steps_per_epoch,
+            )

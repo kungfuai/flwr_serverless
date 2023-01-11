@@ -17,11 +17,21 @@ if __name__ == "__main__":
         "lr": 0.001,
     }
 
+    num_nodes = 3
+    use_async = True
+    federated_type = "sequential"
     dataset = "mnist"
     strategy = "fedavg"
 
     # federeated run w/ FedAvg
     wandb.init(project="test-project", entity="flwr_p2p", name="federated_avg_asnyc")
-    federated_learning_runner = FederatedLearningRunner(config, dataset, strategy)
+    federated_learning_runner = FederatedLearningRunner(
+        config=config,
+        num_nodes=num_nodes,
+        use_async=use_async,
+        federated_type=federated_type,
+        dataset=dataset,
+        strategy=strategy,
+    )
     federated_learning_runner.run()
     wandb.finish()

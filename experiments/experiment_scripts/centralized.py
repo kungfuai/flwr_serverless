@@ -15,12 +15,13 @@ if __name__ == "__main__":
         "lr": 0.001,
     }
 
+    num_nodes = 1
     dataset = "mnist"
 
     # federeated run w/ FedAvg
     wandb.init(
         project="test-project", entity="flwr_p2p", name="centralized", config=config
     )
-    centralized_runner = CentralizedRunner(config, dataset)
+    centralized_runner = CentralizedRunner(config, num_nodes, dataset)
     centralized_runner.run()
     wandb.finish()
