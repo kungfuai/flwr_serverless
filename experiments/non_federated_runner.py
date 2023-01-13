@@ -1,6 +1,7 @@
 from wandb.keras import WandbCallback
 
 from experiments.base_experiment_runner import BaseExperimentRunner
+from experiments.custom_wandb_callback import CustomWandbCallback
 
 
 class NonFederatedRunner(BaseExperimentRunner):
@@ -26,7 +27,12 @@ class NonFederatedRunner(BaseExperimentRunner):
                 train_loader,
                 epochs=self.epochs,
                 steps_per_epoch=self.steps_per_epoch,
-                callbacks=[WandbCallback()],
+                callbacks=[
+                    CustomWandbCallback(i_node),
+                ],
+                validation_data=(self.x_test, self.y_test),
+                validation_steps=self.steps_per_epoch,
+                validation_batch_size=self.batch_size,
             )
 
     def evaluate(self):

@@ -11,6 +11,7 @@ class BaseExperimentRunner:
         self.epochs = config["epochs"]
         self.steps_per_epoch = config["steps_per_epoch"]
         self.lr = config["lr"]
+        self.shuffled = config["shuffled"]
 
         if dataset == "mnist":
             from tensorflow.keras.datasets import mnist
@@ -24,7 +25,7 @@ class BaseExperimentRunner:
     def create_models(self):
         return [CreateMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
 
-    def create_partitioned_datasets(self):
+    def create_partitioned_datasets(self, shuffled=True):
         num_partitions = self.num_nodes
 
         image_size = self.x_train.shape[1]
@@ -32,6 +33,12 @@ class BaseExperimentRunner:
         x_test = np.reshape(self.x_test, [-1, image_size, image_size, 1])
         x_train = x_train.astype(np.float32) / 255
         x_test = x_test.astype(np.float32) / 255
+
+        if shuffled:
+            idx = np.random.permutation(len(x_train))
+            x_train = x_train[idx]
+            self.y_train = self.y_train[idx]
+
         (
             partitioned_x_train,
             partitioned_y_train,
