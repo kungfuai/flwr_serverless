@@ -11,7 +11,7 @@ class BaseExperimentRunner:
         self.epochs = config["epochs"]
         self.steps_per_epoch = config["steps_per_epoch"]
         self.lr = config["lr"]
-        self.shuffled = config["shuffled"]
+        # self.shuffled = config["shuffled"]
 
         if dataset == "mnist":
             from tensorflow.keras.datasets import mnist

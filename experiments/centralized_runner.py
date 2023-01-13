@@ -11,6 +11,7 @@ class CentralizedRunner(BaseExperimentRunner):
     def __init__(self, config, num_nodes, dataset):
         super().__init__(config, dataset)
         self.num_nodes = 1
+        self.test_steps = 10
 
     def run(self):
         self.train_and_eval()
@@ -31,6 +32,12 @@ class CentralizedRunner(BaseExperimentRunner):
             batch_size=self.batch_size,
             steps_per_epoch=self.steps_per_epoch,
             callbacks=[WandbCallback()],
+            validation_data=(
+                self.x_test[: self.test_steps * self.batch_size, ...],
+                self.y_test[: self.test_steps * self.batch_size, ...],
+            ),
+            validation_steps=self.test_steps,
+            validation_batch_size=self.batch_size,
         )
         # memorization test
         loss, accuracy = model.evaluate(

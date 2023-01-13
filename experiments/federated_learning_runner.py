@@ -32,7 +32,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
         self.storage_backend: Any = InMemoryFolder()
         self.use_async_node = use_async
         self.num_rounds = self.epochs  # ??? not sure what this is
-        self.test_steps = self.steps_per_epoch  # ??? not sure what this is
+        self.test_steps = 10  # ??? not sure what this is
         self.strategy_name = strategy
 
     def run(self):
@@ -120,6 +120,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
     def _train_federated_models_pseudo_concurrently(
         self, model_federated: List[keras.Model]
     ) -> List[keras.Model]:
+        self.lag = 0.1
         nodes = self.create_nodes()
         num_partitions = self.num_nodes
         callbacks_per_client = [
@@ -157,7 +158,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 x=train_loaders[i_node],
                 epochs=num_epochs_per_round,
                 steps_per_epoch=self.steps_per_epoch,
-                callbacks=[WandbCallback(), callbacks_per_client[i_node]],
+                callbacks=[callbacks_per_client[i_node]],
                 validation_data=(
                     self.x_test[: self.test_steps * self.batch_size, ...],
                     self.y_test[: self.test_steps * self.batch_size, ...],
@@ -205,7 +206,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
                     epochs=num_epochs_per_round,
                     steps_per_epoch=self.steps_per_epoch,
                     callbacks=[
-                        wandb_callbacks[i_partition],
+                        # wandb_callbacks[i_partition],
                         callbacks_per_client[i_partition],
                     ],
                 )

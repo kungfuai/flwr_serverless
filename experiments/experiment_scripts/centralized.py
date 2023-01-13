@@ -9,10 +9,11 @@ if __name__ == "__main__":
     set_random_seed(117)
 
     config = {
-        "epochs": 16,
+        "epochs": 128,
         "batch_size": 32,
         "steps_per_epoch": 8,
         "lr": 0.001,
+        "shuffled:": False,
     }
 
     num_nodes = 1

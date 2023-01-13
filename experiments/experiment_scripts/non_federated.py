@@ -8,18 +8,31 @@ if __name__ == "__main__":
     # starts a new run
     set_random_seed(117)
 
+    num_nodes = 2
+    use_async = True
+    shuffled = True  # if true, the order of the data is shuffled before partitioning
+    federated_type = "concurrent"  # options: concurrent, sequential, pseudo-concurrent
+    dataset = "mnist"
+    strategy = "fedavg"
+
     config = {
-        "epochs": 16,
+        "epochs": 128,
         "batch_size": 32,
-        "steps_per_epoch": 8,
-        "lr": 0.001,
+        "steps_per_epoch": 16,
+        "lr": 0.0004,
+        "num_nodes": num_nodes,
+        "use_async": use_async,
+        "federated_type": federated_type,
+        "dataset": dataset,
+        "strategy": strategy,
+        "shuffled": shuffled,
     }
 
     num_nodes = 2
     dataset = "mnist"
 
     wandb.init(
-        project="test-project", entity="flwr_p2p", name="non_federal", config=config
+        project="test-project", entity="flwr_p2p", name="non_federated", config=config
     )
     nonfederated_runner = NonFederatedRunner(config, num_nodes, dataset)
     nonfederated_runner.run()
