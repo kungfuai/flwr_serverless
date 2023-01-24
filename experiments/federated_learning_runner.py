@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Any
 from tensorflow import keras
 from wandb.keras import WandbCallback
@@ -26,7 +26,15 @@ from experiments.custom_wandb_callback import CustomWandbCallback
 
 
 class FederatedLearningRunner(BaseExperimentRunner):
-    def __init__(self, config, num_nodes, federated_type, use_async, dataset, strategy):
+    def __init__(
+        self,
+        config,
+        num_nodes,
+        federated_type,
+        use_async,
+        dataset,
+        strategy,
+    ):
         super().__init__(config, num_nodes, dataset)
         self.federated_type = federated_type
         self.storage_backend: Any = InMemoryFolder()
@@ -34,6 +42,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
         self.num_rounds = self.epochs  # ??? not sure what this is
         self.test_steps = 10  # ??? not sure what this is
         self.strategy_name = strategy
+        self.data_split = config["data_split"]
 
     def run(self):
         self.models = self.create_models()
@@ -43,7 +52,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
             self.partitioned_y_train,
             self.x_test,
             self.y_test,
-        ) = self.create_partitioned_datasets()
+        ) = self.split_data()
         self.train_federated_models()
         self.evaluate()
 
@@ -62,6 +71,14 @@ class FederatedLearningRunner(BaseExperimentRunner):
         #     self.strategy = FedAdagrad()
         else:
             raise ValueError("Strategy not supported")
+
+    def split_data(self):
+        if self.data_split == "random":
+            return self.random_split()
+        elif self.data_split == "partitioned":
+            return self.create_partitioned_datasets()
+        else:
+            raise ValueError("Data split not supported")
 
     def train_federated_models(
         self,
@@ -113,7 +130,10 @@ class FederatedLearningRunner(BaseExperimentRunner):
                     validation_batch_size=self.batch_size,
                 )
                 futures.append(future)
-            # train_results = [future.result() for future in futures]
+
+            train_results = []
+            for future in as_completed(futures):
+                train_results.append(future.result())
 
         return model_federated
 

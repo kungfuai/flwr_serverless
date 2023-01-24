@@ -12,10 +12,10 @@ if __name__ == "__main__":
 
     num_nodes = 2
     use_async = True
-    shuffled = True
     federated_type = "concurrent"
     dataset = "mnist"
     strategy = "fedavg"
+    data_split = "partitioned"
 
     config = {
         "epochs": 128,
@@ -27,13 +27,13 @@ if __name__ == "__main__":
         "federated_type": federated_type,
         "dataset": dataset,
         "strategy": strategy,
-        "shuffled": shuffled,
+        "data_split": data_split,
     }
 
     wandb.init(
         project="experiments",
         entity="flwr_p2p",
-        name=f"async_{strategy}_{num_nodes}nodes_shuffled={shuffled}",
+        name=f"async_{strategy}_{num_nodes}_nodes_{data_split}_split",
         config=config,
     )
     federated_learning_runner = FederatedLearningRunner(

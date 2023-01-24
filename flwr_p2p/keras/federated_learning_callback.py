@@ -35,7 +35,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         # use the P2PStrategy to update the model.
         params: Parameters = ndarrays_to_parameters(self.model.get_weights())
         updated_params = self.node.update_parameters(
-            params, num_examples=self.num_examples_per_epoch
+            params, num_examples=self.num_examples_per_epoch, epoch=epoch
         )
         if updated_params is not None:
             self.model.set_weights(parameters_to_ndarrays(updated_params))
