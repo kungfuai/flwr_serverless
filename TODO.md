@@ -2,3 +2,5 @@
 - test real concurrency
 - s3 storage backend
 - delete old models in sync node
+- write skewed split method
+    - should have performance between random split and partitioned split

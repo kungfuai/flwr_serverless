@@ -1,6 +1,6 @@
 import numpy as np
 
-from flwr_p2p.keras.example import CreateMnistModel
+from experiments.simple_mnist_model import SimpleMnistModel
 
 
 class BaseExperimentRunner:
@@ -22,10 +22,9 @@ class BaseExperimentRunner:
 
     # ***currently works only for mnist***
     def create_models(self):
-        return [CreateMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+        return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
 
     def random_split(self):
-        # random split
         num_partitions = self.num_nodes
         image_size = self.x_train.shape[1]
         x_train = np.reshape(self.x_train, [-1, image_size, image_size, 1])
@@ -43,6 +42,25 @@ class BaseExperimentRunner:
         partitioned_y_train = np.array_split(y_train, num_partitions)
 
         return partitioned_x_train, partitioned_y_train, x_test, self.y_test
+
+    # def skewed_split(self):
+    #     num_partitions = self.num_nodes
+    #     image_size = self.x_train.shape[1]
+    #     x_train = np.reshape(self.x_train, [-1, image_size, image_size, 1])
+    #     x_test = np.reshape(self.x_test, [-1, image_size, image_size, 1])
+    #     x_train = x_train.astype(np.float32) / 255
+    #     x_test = x_test.astype(np.float32) / 255
+
+    #     # shuffle data then partition
+    #     num_train = x_train.shape[0]
+    #     indices = np.random.permutation(num_train)
+    #     x_train = x_train[indices]
+    #     y_train = self.y_train[indices]
+
+    #     partitioned_x_train = np.array_split(x_train, num_partitions)
+    #     partitioned_y_train = np.array_split(y_train, num_partitions)
+
+    #     return partitioned_x_train, partitioned_y_train, x_test, self.y_test
 
     def create_partitioned_datasets(self):
         num_partitions = self.num_nodes
