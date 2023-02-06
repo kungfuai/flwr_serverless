@@ -73,8 +73,17 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 )
                 for i in range(self.num_nodes)
             ]
-        # elif self.strategy_name == "fedopt":
-        #     self.strategy = FedOpt()
+        elif self.strategy_name == "fedopt":
+            self.strategies = [
+                FedOpt(
+                    initial_parameters=ndarrays_to_parameters(
+                        self.models[i].get_weights()
+                    )
+                )
+                for i in range(self.num_nodes)
+            ]
+        elif self.strategy_name == "fedmedian":
+            self.strategies = [FedMedian() for _ in range(self.num_nodes)]
         # elif self.strategy_name == "fedyogi":
         #     self.strategy = FedYogi()
         # elif self.strategy_name == "fedadagrad":
@@ -87,6 +96,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
             return self.random_split()
         elif self.data_split == "partitioned":
             return self.create_partitioned_datasets()
+        elif self.data_split == "skewed":
+            return self.create_skewed_partition_split()
         else:
             raise ValueError("Data split not supported")
 
