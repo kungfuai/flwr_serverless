@@ -14,7 +14,7 @@ if __name__ == "__main__":
     use_async = True
     federated_type = "concurrent"
     dataset = "mnist"
-    strategy = "fedmedian"
+    strategy = "fedavg"
     data_split = "skewed"
 
     if use_async:
