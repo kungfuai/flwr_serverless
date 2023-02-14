@@ -1,4 +1,4 @@
-pytest
+pytest==7.2.1
 s3fs
 moto
 wandb

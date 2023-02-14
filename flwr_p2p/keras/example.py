@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import List, Any
+from typing import List, Any, Callable
 import numpy as np
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.layers import Conv2D, Dense, Flatten, Input, MaxPooling2D
@@ -33,6 +33,13 @@ class FederatedLearningTestRun:
     train_concurrently: bool = False
     train_pseudo_concurrently: bool = False
     lag: float = 0.1
+
+    model_builder_fn: Callable = None
+    replicate_num_channels: bool = False
+
+    def __post_init__(self):
+        if self.model_builder_fn is None:
+            self.model_builder_fn = MnistModelBuilder(lr=self.lr).run
 
     def run(self):
         (
@@ -75,6 +82,9 @@ class FederatedLearningTestRun:
         image_size = x_train.shape[1]
         x_train = np.reshape(x_train, [-1, image_size, image_size, 1])
         x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
+        if self.replicate_num_channels:
+            x_train = np.tile(x_train, (1, 1, 1, 3))
+            x_test = np.tile(x_test, (1, 1, 1, 3))
         x_train = x_train.astype(np.float32) / 255
         x_test = x_test.astype(np.float32) / 255
         partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(
@@ -83,7 +93,7 @@ class FederatedLearningTestRun:
         return partitioned_x_train, partitioned_y_train, x_test, y_test
 
     def create_standalone_models(self):
-        return [CreateMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+        return [self.model_builder_fn() for _ in range(self.num_nodes)]
 
     def get_train_dataloader_for_node(self, node_idx: int):
         partition_idx = node_idx
@@ -97,7 +107,7 @@ class FederatedLearningTestRun:
                 ], partitioned_y_train[partition_idx][i : i + batch_size]
 
     def create_federated_models(self):
-        return [CreateMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+        return [self.model_builder_fn() for _ in range(self.num_nodes)]
 
     def train_standalone_models(
         self, model_standalone: List[keras.Model]
@@ -145,9 +155,7 @@ class FederatedLearningTestRun:
                 for _ in range(self.num_nodes)
             ]
         num_partitions = self.num_nodes
-        model_federated = [
-            CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
-        ]
+        model_federated = [self.model_builder_fn() for _ in range(num_partitions)]
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],
@@ -196,9 +204,7 @@ class FederatedLearningTestRun:
         else:
             raise NotImplementedError()
         num_partitions = self.num_nodes
-        model_federated = [
-            CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
-        ]
+        model_federated = [self.model_builder_fn for _ in range(num_partitions)]
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],
@@ -268,9 +274,7 @@ class FederatedLearningTestRun:
         else:
             raise NotImplementedError()
         num_partitions = self.num_nodes
-        model_federated = [
-            CreateMnistModel(lr=self.lr).run() for _ in range(num_partitions)
-        ]
+        model_federated = [self.model_builder_fn() for _ in range(num_partitions)]
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i], num_examples_per_epoch=self.batch_size * self.steps_per_epoch
@@ -313,7 +317,11 @@ class FederatedLearningTestRun:
         return accuracies
 
 
-class CreateMnistModel:
+class MnistModelBuilder:
+    """This is a helper class to create a simple Keras model
+    for MNIST digit classification.
+    """
+
     def __init__(self, lr=0.001):
         self.lr = lr
 

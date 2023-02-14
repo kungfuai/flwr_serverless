@@ -1,6 +1,6 @@
 import numpy as np
 
-from flwr_p2p.keras.example import CreateMnistModel
+from flwr_p2p.keras.example import MnistModelBuilder
 
 
 class BaseExperimentRunner:
@@ -22,7 +22,7 @@ class BaseExperimentRunner:
 
     # ***currently works only for mnist***
     def create_models(self):
-        return [CreateMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+        return [MnistModelBuilder(lr=self.lr).run() for _ in range(self.num_nodes)]
 
     def random_split(self):
         # random split
