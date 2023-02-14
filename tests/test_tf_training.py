@@ -21,7 +21,7 @@ from flwr_p2p.shared_folder.local_folder import LocalFolder
 from flwr_p2p.keras.federated_learning_callback import FlwrFederatedCallback
 from flwr_p2p.keras.example import (
     FederatedLearningTestRun,
-    CreateMnistModel,
+    MnistModelBuilder,
     split_training_data_into_paritions,
 )
 
@@ -41,8 +41,8 @@ def test_mnist_training_clients_on_partitioned_data():
     x_train = x_train.astype(np.float32) / 255
     x_test = x_test.astype(np.float32) / 255
 
-    model_standalone1 = CreateMnistModel().run()
-    model_standalone2 = CreateMnistModel().run()
+    model_standalone1 = MnistModelBuilder().run()
+    model_standalone2 = MnistModelBuilder().run()
 
     partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(
         x_train, y_train, num_partitions=2
@@ -86,8 +86,8 @@ def test_mnist_training_clients_on_partitioned_data():
     assert accuracy_standalone2 < 0.55
 
     # federated learning
-    model_client1 = CreateMnistModel().run()
-    model_client2 = CreateMnistModel().run()
+    model_client1 = MnistModelBuilder().run()
+    model_client2 = MnistModelBuilder().run()
 
     # strategy = FedAvg()
     strategy = FedAvgM()
@@ -171,7 +171,7 @@ def test_mnist_training_standalone():
     x_test = np.reshape(x_test, [-1, image_size, image_size, 1])
     x_train = x_train.astype(np.float32) / 255
     x_test = x_test.astype(np.float32) / 255
-    model = CreateMnistModel().run()
+    model = MnistModelBuilder().run()
 
     model.fit(x_train, y_train, epochs=3, batch_size=32, steps_per_epoch=10)
     # TODO: look into the history object to get accuracy
@@ -198,8 +198,8 @@ def test_mnist_training_using_federated_nodes():
     x_train = x_train.astype(np.float32) / 255
     x_test = x_test.astype(np.float32) / 255
 
-    model_standalone1 = CreateMnistModel().run()
-    model_standalone2 = CreateMnistModel().run()
+    model_standalone1 = MnistModelBuilder().run()
+    model_standalone2 = MnistModelBuilder().run()
 
     partitioned_x_train, partitioned_y_train = split_training_data_into_paritions(
         x_train, y_train, num_partitions=2
@@ -244,8 +244,8 @@ def test_mnist_training_using_federated_nodes():
     assert accuracy_standalone2 < 0.55
 
     # federated learning
-    model_client1 = CreateMnistModel().run()
-    model_client2 = CreateMnistModel().run()
+    model_client1 = MnistModelBuilder().run()
+    model_client2 = MnistModelBuilder().run()
 
     strategy = FedAvg()
     # strategy = FedAvgM()

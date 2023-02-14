@@ -1,1 +1,13 @@
 flwr
+
+# Troubleshooting
+#
+#  `grpcio` installation on Apple M1, see
+# https://stackoverflow.com/questions/66640705/how-can-i-install-grpcio-on-an-apple-m1-silicon-laptop
+# export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
+# export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
+#
+# `tensorflow` installation on Apple M1:
+# conda install -c apple tensorflow-deps
+# pip install tensorflow-macos
+# pip install keras-cv

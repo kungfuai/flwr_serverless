@@ -2,7 +2,7 @@ import numpy as np
 from wandb.keras import WandbCallback
 
 
-from flwr_p2p.keras.example import CreateMnistModel
+from flwr_p2p.keras.example import MnistModelBuilder
 
 from experiments.base_experiment_runner import BaseExperimentRunner
 
@@ -23,7 +23,7 @@ class CentralizedRunner(BaseExperimentRunner):
         x_train = x_train.astype(np.float32) / 255
         x_test = x_test.astype(np.float32) / 255
 
-        model = CreateMnistModel(self.lr).run()
+        model = MnistModelBuilder(self.lr).run()
 
         model.fit(
             self.x_train,
