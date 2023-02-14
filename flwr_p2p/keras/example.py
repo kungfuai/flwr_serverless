@@ -204,7 +204,7 @@ class FederatedLearningTestRun:
         else:
             raise NotImplementedError()
         num_partitions = self.num_nodes
-        model_federated = [self.model_builder_fn for _ in range(num_partitions)]
+        model_federated = [self.model_builder_fn() for _ in range(num_partitions)]
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],

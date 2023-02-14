@@ -119,7 +119,7 @@ class AsyncFederatedNode:
         local_parameters: Parameters,
         num_examples: int = None,
         epoch: int = None,
-    ):
+    ) -> Parameters:
         LOGGER.info(f"node {self.node_id}: in update_parameters")
         assert isinstance(num_examples, int)
         assert num_examples >= 1
