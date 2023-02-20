@@ -16,9 +16,9 @@ class BaseExperimentRunner:
             from tensorflow.keras.datasets import mnist
 
             (self.x_train, self.y_train), (self.x_test, self.y_test) = mnist.load_data()
-        # elif dataset == "cifar10":
-        #     from tensorflow.keras.datasets import cifar10
-        #     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+        elif dataset == "cifar10":
+            from tensorflow.keras.datasets import cifar10
+            (self.x_train, self.y_train), (self.x_test, self.y_test) = cifar10.load_data()
 
     # ***currently works only for mnist***
     def create_models(self):
