@@ -37,6 +37,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
         use_async,
         dataset,
         strategy,
+        tracking: bool = True,
     ):
         super().__init__(config, num_nodes, dataset)
         self.federated_type = federated_type
@@ -46,6 +47,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
         self.test_steps = 10  # ??? not sure what this is
         self.strategy_name = strategy
         self.data_split = config["data_split"]
+        self.tracking = tracking
 
     def run(self):
         self.models = self.create_models()

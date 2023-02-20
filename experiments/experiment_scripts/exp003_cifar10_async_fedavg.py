@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     # base config
     config = {
-        "epochs": 128,
+        "epochs": 2,  # 128,
         "batch_size": 32,
         "steps_per_epoch": 8,
         "lr": 0.001,
@@ -32,14 +32,13 @@ if __name__ == "__main__":
     }
 
     config_overides = []
-    
 
-    wandb.init(
-        project="experiments",
-        entity="flwr_p2p",
-        name=f"async_{strategy}_{num_nodes}_nodes_{data_split}_split",
-        config=config,
-    )
+    # wandb.init(
+    #     project="experiments",
+    #     entity="flwr_p2p",
+    #     name=f"async_{strategy}_{num_nodes}_nodes_{data_split}_split",
+    #     config=config,
+    # )
     federated_learning_runner = FederatedLearningRunner(
         config=config,
         num_nodes=num_nodes,
@@ -49,4 +48,4 @@ if __name__ == "__main__":
         strategy=strategy,
     )
     federated_learning_runner.run()
-    wandb.finish()
+    # wandb.finish()

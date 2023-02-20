@@ -5,21 +5,35 @@ from experiments.simple_mnist_model import SimpleMnistModel
 
 
 class BaseExperimentRunner:
-    def __init__(self, config, num_nodes, dataset="mnist"):
+    def __init__(self, config, num_nodes, dataset="mnist", tracking=False):
         self.num_nodes = num_nodes
         self.config = config
         self.batch_size = config["batch_size"]
         self.epochs = config["epochs"]
         self.steps_per_epoch = config["steps_per_epoch"]
         self.lr = config["lr"]
+        self.dataset = dataset
+        self.tracking = tracking
 
+        self.get_original_data()
+
+    # ***currently works only for mnist***
+    def create_models(self):
+        return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+
+    def get_original_data(self):
+        dataset = self.dataset
         if dataset == "mnist":
             from tensorflow.keras.datasets import mnist
 
             (self.x_train, self.y_train), (self.x_test, self.y_test) = mnist.load_data()
         elif dataset == "cifar10":
             from tensorflow.keras.datasets import cifar10
-            (self.x_train, self.y_train), (self.x_test, self.y_test) = cifar10.load_data()
+
+            (self.x_train, self.y_train), (
+                self.x_test,
+                self.y_test,
+            ) = cifar10.load_data()
 
     # ***currently works only for mnist***
     def create_models(self):
