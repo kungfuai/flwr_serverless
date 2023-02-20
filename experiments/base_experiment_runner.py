@@ -46,7 +46,7 @@ class BaseExperimentRunner:
 
         return partitioned_x_train, partitioned_y_train, x_test, self.y_test
 
-    def create_skewed_partition_split(self, skew_factor: float = 0.5):
+    def create_skewed_partition_split(self, skew_factor: float = 0.90):
         # only works for 2 nodes at the moment
         # returns a "skewed" partition of data
         # Ex: 0.8 means 80% of the data for one node is 0-4 while 20% is 5-9

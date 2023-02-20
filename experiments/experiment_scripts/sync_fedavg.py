@@ -23,7 +23,7 @@ if __name__ == "__main__":
         sync = "sync"
 
     config = {
-        "epochs": 256,
+        "epochs": 1000,
         "batch_size": 32,
         "steps_per_epoch": 8,
         "lr": 0.001,
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     }
 
     wandb.init(
-        project="experiments",
+        project="sync-vs-async",
         entity="flwr_p2p",
         name=f"{sync}_{strategy}_{num_nodes}_nodes_{data_split}_split",
         config=config,
