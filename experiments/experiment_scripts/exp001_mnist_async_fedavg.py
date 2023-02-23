@@ -10,39 +10,116 @@ if __name__ == "__main__":
     # starts a new run
     set_random_seed(117)
 
+    # shared config parameters
     num_nodes = 2
-    use_async = True
     federated_type = "concurrent"
     dataset = "mnist"
     strategy = "fedavg"
-    data_split = "partitioned"
+    epochs = 1000
+    batch_size = 32
+    steps_per_epoch = 64
+    lr = 0.001
 
-    config = {
-        "epochs": 128,
-        "batch_size": 32,
-        "steps_per_epoch": 8,
-        "lr": 0.001,
+    # async partitioned
+    config1 = {
+        "use_async": True,
+        "data_split": "partitioned",
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "steps_per_epoch": steps_per_epoch,
+        "lr": lr,
         "num_nodes": num_nodes,
-        "use_async": use_async,
         "federated_type": federated_type,
         "dataset": dataset,
         "strategy": strategy,
-        "data_split": data_split,
     }
 
-    wandb.init(
-        project="experiments",
-        entity="flwr_p2p",
-        name=f"async_{strategy}_{num_nodes}_nodes_{data_split}_split",
-        config=config,
-    )
-    federated_learning_runner = FederatedLearningRunner(
-        config=config,
-        num_nodes=num_nodes,
-        use_async=use_async,
-        federated_type=federated_type,
-        dataset=dataset,
-        strategy=strategy,
-    )
-    federated_learning_runner.run()
-    wandb.finish()
+    # async skewed
+    config2 = {
+        "use_async": True,
+        "data_split": "skewed",
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "steps_per_epoch": steps_per_epoch,
+        "lr": lr,
+        "num_nodes": num_nodes,
+        "federated_type": federated_type,
+        "dataset": dataset,
+        "strategy": strategy,
+    }
+
+    # async random
+    config3 = {
+        "use_async": True,
+        "data_split": "random",
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "steps_per_epoch": steps_per_epoch,
+        "lr": lr,
+        "num_nodes": num_nodes,
+        "federated_type": federated_type,
+        "dataset": dataset,
+        "strategy": strategy,
+    }
+    # sync partitioned
+    config4 = {
+        "use_async": False,
+        "data_split": "partitioned",
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "steps_per_epoch": steps_per_epoch,
+        "lr": lr,
+        "num_nodes": num_nodes,
+        "federated_type": federated_type,
+        "dataset": dataset,
+        "strategy": strategy,
+    }
+
+    # sync skewed
+    config5 = {
+        "use_async": False,
+        "data_split": "skewed",
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "steps_per_epoch": steps_per_epoch,
+        "lr": lr,
+        "num_nodes": num_nodes,
+        "federated_type": federated_type,
+        "dataset": dataset,
+        "strategy": strategy,
+    }
+
+    # sync random
+    config6 = {
+        "use_async": False,
+        "data_split": "random",
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "steps_per_epoch": steps_per_epoch,
+        "lr": lr,
+        "num_nodes": num_nodes,
+        "federated_type": federated_type,
+        "dataset": dataset,
+        "strategy": strategy,
+    }
+
+    configs = [config1, config2, config3, config4, config5, config6]
+
+    for config in configs:
+        if config["use_async"]:
+            use_async = "async"
+        else:
+            use_async = "sync"
+        data_split = config["data_split"]
+        wandb.init(
+            project="experiments",
+            entity="flwr_p2p",
+            name=f"mnist_{use_async}_{data_split}_split",
+            config=config,
+        )
+        federated_learning_runner = FederatedLearningRunner(
+            config=config,
+            tracking=True,
+        )
+        federated_learning_runner.run()
+        wandb.finish()
