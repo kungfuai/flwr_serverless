@@ -15,13 +15,14 @@ if __name__ == "__main__":
     federated_type = "concurrent"
     dataset = "cifar10"
     strategy = "fedavg"
-    data_split = "partitioned"
+    data_split = "random"
+    # data_split = "partitioned"
 
     # base config
     config = {
         "epochs": 2,  # 128,
         "batch_size": 32,
-        "steps_per_epoch": 8,
+        "steps_per_epoch": 100,
         "lr": 0.001,
         "num_nodes": num_nodes,
         "use_async": use_async,
@@ -29,6 +30,8 @@ if __name__ == "__main__":
         "dataset": dataset,
         "strategy": strategy,
         "data_split": data_split,
+        "test_steps": 10,
+        "net": "resnet50",
     }
 
     config_overides = []
@@ -41,11 +44,7 @@ if __name__ == "__main__":
     # )
     federated_learning_runner = FederatedLearningRunner(
         config=config,
-        num_nodes=num_nodes,
-        use_async=use_async,
-        federated_type=federated_type,
-        dataset=dataset,
-        strategy=strategy,
+        tracking=False,
     )
     federated_learning_runner.run()
     # wandb.finish()

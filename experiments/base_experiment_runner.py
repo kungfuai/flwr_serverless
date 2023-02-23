@@ -2,24 +2,37 @@ import numpy as np
 
 # from flwr_p2p.keras.example import MnistModelBuilder
 from experiments.simple_mnist_model import SimpleMnistModel
+from experiments.model.keras_models import ResNetModelBuilder
 
 
 class BaseExperimentRunner:
-    def __init__(self, config, num_nodes, dataset="mnist", tracking=False):
-        self.num_nodes = num_nodes
+    def __init__(self, config, tracking=False):
         self.config = config
+        self.num_nodes = config["num_nodes"]
         self.batch_size = config["batch_size"]
         self.epochs = config["epochs"]
         self.steps_per_epoch = config["steps_per_epoch"]
         self.lr = config["lr"]
-        self.dataset = dataset
+        self.test_steps = config["test_steps"]
+        self.use_async = config["use_async"]
+        self.federated_type = config["federated_type"]
+        self.strategy_name = config["strategy"]
+        self.data_split = config["data_split"]
+        self.dataset = config["dataset"]
+        self.net = config["net"]
+
         self.tracking = tracking
 
         self.get_original_data()
 
     # ***currently works only for mnist***
     def create_models(self):
-        return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+        if self.dataset == "mnist":
+            assert self.net == "simple", f"Net not supported: {self.net} for mnist"
+        if self.net == "simple":
+            return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
+        elif self.net == "resnet50":
+            return [ResNetModelBuilder(lr=self.lr, net="ResNet50", weights="imagenet").run() for _ in range(self.num_nodes)]
 
     def get_original_data(self):
         dataset = self.dataset
@@ -35,14 +48,14 @@ class BaseExperimentRunner:
                 self.y_test,
             ) = cifar10.load_data()
 
-    # ***currently works only for mnist***
-    def create_models(self):
-        # return [MnistModelBuilder(lr=self.lr).run() for _ in range(self.num_nodes)]
-        return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
-
     def normalize_data(self, data):
         image_size = data.shape[1]
-        reshaped_data = np.reshape(data, [-1, image_size, image_size, 1])
+        if self.dataset == "mnist":
+            reshaped_data = np.reshape(data, [-1, image_size, image_size, 1])
+        elif self.dataset == "cifar10":
+            reshaped_data = np.reshape(data, [-1, image_size, image_size, 3])
+        else:
+            raise ValueError(f"Dataset not supported: {self.dataset}")
         normalized_data = reshaped_data.astype(np.float32) / 255
         return normalized_data
 
@@ -139,9 +152,14 @@ class BaseExperimentRunner:
         partitioned_y_train = self.partitioned_y_train
         while True:
             for i in range(0, len(partitioned_x_train[partition_idx]), self.batch_size):
-                yield partitioned_x_train[partition_idx][
-                    i : i + self.batch_size
-                ], partitioned_y_train[partition_idx][i : i + self.batch_size]
+                x_train_batch, y_train_batch = (
+                    partitioned_x_train[partition_idx][i : i + self.batch_size],
+                    partitioned_y_train[partition_idx][i : i + self.batch_size],
+                )
+                # print("x_train_batch.shape", x_train_batch.shape)
+                # print("y_train_batch.shape", y_train_batch.shape)
+                # raise Exception("stop")
+                yield x_train_batch, y_train_batch
 
     # ***currently this only works for mnist*** and for num_nodes = 2, 10
     def split_training_data_into_paritions(
@@ -162,8 +180,20 @@ class BaseExperimentRunner:
         partitioned_x_train = []
         partitioned_y_train = []
         for partition in partitioned_classes:
-            partitioned_x_train.append(x_train[np.isin(y_train, partition)])
-            partitioned_y_train.append(y_train[np.isin(y_train, partition)])
+            # partition is a list of int
+            if len(y_train.shape) == 2:
+                selected = np.isin(y_train, partition)[:, 0]
+            elif len(y_train.shape) == 1:
+                selected = np.isin(y_train, partition)
+            # subsetting based on the first axis
+            x_train_selected = x_train[selected]
+            assert (
+                x_train_selected.shape[0] < x_train.shape[0]
+            ), "partitioned dataset should be smaller than original dataset"
+            assert x_train_selected.shape[0] == y_train[selected].shape[0]
+            partitioned_x_train.append(x_train_selected)
+            y_train_selected = y_train[selected]
+            partitioned_y_train.append(y_train_selected)
 
         return partitioned_x_train, partitioned_y_train
 
