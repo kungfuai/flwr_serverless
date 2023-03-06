@@ -2,11 +2,14 @@ import wandb
 
 # import set_random_seed
 from tensorflow.keras.utils import set_random_seed
-
 from experiments.federated_learning_runner import FederatedLearningRunner
 
 # main function
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    import os
+
+    load_dotenv()
     # starts a new run
     set_random_seed(117)
 
@@ -19,6 +22,11 @@ if __name__ == "__main__":
     batch_size = 32
     steps_per_epoch = 64
     lr = 0.001
+
+    base_config = {
+        "net": "simple",
+        "test_steps": None,
+    }
 
     # async partitioned
     config1 = {
@@ -105,14 +113,16 @@ if __name__ == "__main__":
 
     configs = [config1, config2, config3, config4, config5, config6]
 
-    for config in configs:
+    for _config in configs:
+        config = {**base_config, **_config}
         if config["use_async"]:
             use_async = "async"
         else:
             use_async = "sync"
         data_split = config["data_split"]
+        # print(os.getenv("WANDB_PROJECT"))
         wandb.init(
-            project="experiments",
+            project=os.getenv("WANDB_PROJECT"),
             entity="flwr_p2p",
             name=f"mnist_{use_async}_{data_split}_split",
             config=config,
