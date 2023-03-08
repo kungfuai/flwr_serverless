@@ -135,6 +135,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 ]
                 if self.tracking:
                     callbacks.append(CustomWandbCallback(i_node))
+
+                # assert self.test_steps is None
                 future = ex.submit(
                     model_federated[i_node].fit,
                     x=train_loaders[i_node],
@@ -159,12 +161,21 @@ class FederatedLearningRunner(BaseExperimentRunner):
         self.lag = 0.1
         nodes = self.create_nodes()
         num_partitions = self.num_nodes
+        if self.test_steps is None:
+            x_test = self.x_test
+            y_test = self.y_test
+        else:
+            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
+
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],
                 num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
-                x_test=self.x_test[: self.test_steps * self.batch_size, ...],
-                y_test=self.y_test[: self.test_steps * self.batch_size, ...],
+                x_test=x_test,
+                y_test=y_test,
+                # x_test=self.x_test[: self.test_steps * self.batch_size, ...],
+                # y_test=self.y_test[: self.test_steps * self.batch_size, ...],
             )
             for i in range(num_partitions)
         ]
@@ -188,6 +199,12 @@ class FederatedLearningRunner(BaseExperimentRunner):
             x[0] for x in sorted(execution_sequence, key=lambda x: x[1])
         ]
         print(f"Execution sequence: {execution_sequence}")
+        if self.test_steps is None:
+            x_test = self.x_test
+            y_test = self.y_test
+        else:
+            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
         for i_node in execution_sequence:
             print("Training node", i_node)
             model_federated[i_node].fit(
@@ -195,10 +212,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 epochs=num_epochs_per_round,
                 steps_per_epoch=self.steps_per_epoch,
                 callbacks=[callbacks_per_client[i_node]],
-                validation_data=(
-                    self.x_test[: self.test_steps * self.batch_size, ...],
-                    self.y_test[: self.test_steps * self.batch_size, ...],
-                ),
+                validation_data=(x_test, y_test),
                 validation_steps=self.test_steps,
                 validation_batch_size=self.batch_size,
             )
@@ -206,8 +220,10 @@ class FederatedLearningRunner(BaseExperimentRunner):
             if i_node == 0:
                 print("Evaluating on the combined test set:")
                 model_federated[0].evaluate(
-                    self.x_test[: self.test_steps * self.batch_size, ...],
-                    self.y_test[: self.test_steps * self.batch_size, ...],
+                    x_test,
+                    y_test,
+                    # self.x_test[: self.test_steps * self.batch_size, ...],
+                    # self.y_test[: self.test_steps * self.batch_size, ...],
                     batch_size=self.batch_size,
                     steps=10,
                 )

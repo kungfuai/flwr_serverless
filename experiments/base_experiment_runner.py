@@ -13,7 +13,8 @@ class BaseExperimentRunner:
         self.epochs = config["epochs"]
         self.steps_per_epoch = config["steps_per_epoch"]
         self.lr = config["lr"]
-        self.test_steps = config["test_steps"]
+        # In experiment tracking, log the actual test steps and test data size
+        self.test_steps = config.get("test_steps", None)
         self.use_async = config["use_async"]
         self.federated_type = config["federated_type"]
         self.strategy_name = config["strategy"]
@@ -32,7 +33,10 @@ class BaseExperimentRunner:
         if self.net == "simple":
             return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
         elif self.net == "resnet50":
-            return [ResNetModelBuilder(lr=self.lr, net="ResNet50", weights="imagenet").run() for _ in range(self.num_nodes)]
+            return [
+                ResNetModelBuilder(lr=self.lr, net="ResNet50", weights="imagenet").run()
+                for _ in range(self.num_nodes)
+            ]
 
     def get_original_data(self):
         dataset = self.dataset
