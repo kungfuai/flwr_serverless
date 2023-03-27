@@ -31,7 +31,8 @@ if __name__ == "__main__":
     # async partitioned
     config1 = {
         "use_async": True,
-        "data_split": "partitioned",
+        # "data_split": "partitioned",
+        "data_split": "skewed",
         "epochs": epochs,
         "batch_size": batch_size,
         "steps_per_epoch": steps_per_epoch,
@@ -111,7 +112,8 @@ if __name__ == "__main__":
         "strategy": strategy,
     }
 
-    configs = [config1, config2, config3, config4, config5, config6]
+    # configs = [config1, config2, config3, config4, config5, config6]
+    configs = [config1]
 
     for _config in configs:
         config = {**base_config, **_config}

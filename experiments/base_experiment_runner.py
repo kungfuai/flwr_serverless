@@ -79,7 +79,9 @@ class BaseExperimentRunner:
 
         return partitioned_x_train, partitioned_y_train, x_test, self.y_test
 
-    def create_skewed_partition_split(self, skew_factor: float = 0.90):
+    def create_skewed_partition_split(
+        self, skew_factor: float = 0.90, n_splits: int = 2, num_classes: int = 10
+    ):
         # only works for 2 nodes at the moment
         # returns a "skewed" partition of data
         # Ex: 0.8 means 80% of the data for one node is 0-4 while 20% is 5-9
@@ -98,23 +100,61 @@ class BaseExperimentRunner:
             x_train_by_label[label].append(x_train[i])
             y_train_by_label[label].append(label)
 
+        # Partition just the classes into n_splits partitions.
+        splitted_classes = np.array_split(np.arange(num_classes), n_splits)
+        # splitted_classes should look like [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]]
+        # Example:
+        # Partition 0:
+        #   mostly from 0, 1, 2, 3, 4, and a small amount of 5, 6, 7, 8, 9
+
+        def find_partition_that_this_class_belongs_to(class_idx):
+            for i, partition in enumerate(splitted_classes):
+                if class_idx in partition:
+                    return i
+
         skewed_partitioned_x_train = [[], []]
         skewed_partitioned_y_train = [[], []]
-        for i in range(10):
-            num_samples = len(x_train_by_label[i])
-            num_samples_for_node_1 = int(num_samples * skew_factor)
-            skewed_partitioned_x_train[int(i / 5)].extend(
-                x_train_by_label[i][:num_samples_for_node_1]
+        for i in range(num_classes):
+            class_idx = i
+            partition_that_this_class_belongs_to = (
+                find_partition_that_this_class_belongs_to(class_idx)
             )
-            skewed_partitioned_y_train[int(i / 5)].extend(
-                y_train_by_label[i][:num_samples_for_node_1]
-            )
-            skewed_partitioned_x_train[int((i / 5)) - 1].extend(
-                x_train_by_label[i][num_samples_for_node_1:]
-            )
-            skewed_partitioned_y_train[int((i / 5)) - 1].extend(
-                y_train_by_label[i][num_samples_for_node_1:]
-            )
+
+            # num_samples = len(x_train_by_label[i])
+
+            # With probability skew_factor, assign examples to the partition,
+            # otherwise randomly assign to a partition.
+            if np.random.random() < skew_factor:
+                skewed_partitioned_x_train[partition_that_this_class_belongs_to].extend(
+                    x_train_by_label[i]
+                )
+                skewed_partitioned_y_train[partition_that_this_class_belongs_to].extend(
+                    y_train_by_label[i]
+                )
+            else:
+                # Randomly assign to a partition.
+                randomly_assigned_partition = int(np.random.randint(0, self.num_nodes))
+                skewed_partitioned_x_train[randomly_assigned_partition].extend(
+                    x_train_by_label[i]
+                )
+                skewed_partitioned_y_train[randomly_assigned_partition].extend(
+                    y_train_by_label[i]
+                )
+
+            # num_samples_for_node_1 = int(num_samples * skew_factor)
+            # skewed_partitioned_x_train[partition_that_this_class_belongs_to].extend(
+            #     x_train_by_label[i][:num_samples_for_node_1]
+            # )
+
+            # skewed_partitioned_y_train[int(i / 5)].extend(
+            #     y_train_by_label[i][:num_samples_for_node_1]
+            # )
+            # skewed_partitioned_x_train[int((i / 5)) - 1].extend(
+            #     x_train_by_label[i][num_samples_for_node_1:]
+            # )
+            # skewed_partitioned_y_train[int((i / 5)) - 1].extend(
+            #     y_train_by_label[i][num_samples_for_node_1:]
+            # )
 
         # convert to numpy arrays
         skewed_partitioned_x_train[0] = np.asarray(skewed_partitioned_x_train[0])
