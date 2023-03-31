@@ -87,7 +87,7 @@ class BaseExperimentRunner:
         # Ex: 0.8 means 80% of the data for one node is 0-4 while 20% is 5-9
         # and vice versa for the other node
         # Note: A skew factor 0f 0.5 would essentially be a random split,
-        # and 1 would be like a normal partition
+        # and 1 would be like a partition split
 
         # num_partitions = self.num_nodes
         x_train = self.normalize_data(self.x_train)
@@ -157,13 +157,12 @@ class BaseExperimentRunner:
             # )
 
         # convert to numpy arrays
-        skewed_partitioned_x_train[0] = np.asarray(skewed_partitioned_x_train[0])
-        skewed_partitioned_x_train[1] = np.asarray(skewed_partitioned_x_train[1])
-        skewed_partitioned_y_train[0] = np.asarray(skewed_partitioned_y_train[0])
-        skewed_partitioned_y_train[1] = np.asarray(skewed_partitioned_y_train[1])
+        for i in range(self.num_nodes):
+            skewed_partitioned_x_train[i] = np.asarray(skewed_partitioned_x_train[i])
+            skewed_partitioned_y_train[i] = np.asarray(skewed_partitioned_y_train[i])
 
         # shuffle data
-        for i in range(2):
+        for i in range(self.num_nodes):
             num_train = skewed_partitioned_x_train[i].shape[0]
             indices = np.random.permutation(num_train)
             skewed_partitioned_x_train[i] = skewed_partitioned_x_train[i][indices]
