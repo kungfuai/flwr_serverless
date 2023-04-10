@@ -1,172 +1,45 @@
 import wandb
 
+from dataclasses import dataclass
 from keras.utils import set_random_seed
 
 from experiments.federated_learning_runner import FederatedLearningRunner
+
+
+@dataclass
+class Config:
+    # non shared config parameters
+    num_nodes: int
+    strategy: str
+
+    # shared config parameters
+    use_async: bool = True
+    federated_type: str = "concurrent"
+    dataset: str = "mnist"
+    epochs: int = 100
+    batch_size: int = 32
+    steps_per_epoch: int = 64
+    lr: float = 0.001
+    test_steps: int = None
+    net: str = "simple"
+    data_split: str = "skewed"
+
 
 # main function
 if __name__ == "__main__":
     # starts a new run
     set_random_seed(117)
 
-    # shared config parameters
-    federated_type = "concurrent"
-    dataset = "mnist"
-    epochs = 100
-    batch_size = 32
-    steps_per_epoch = 64
-    lr = 0.001
-    test_steps = None  # uses all test data if None
-    net = "simple"
-    data_split = "random"
+    config1 = Config(num_nodes=2, strategy="fedavg")
+    config2 = Config(num_nodes=3, strategy="fedavg")
+    config3 = Config(num_nodes=5, strategy="fedavg")
+    config4 = Config(num_nodes=2, strategy="fedavgm")
+    config5 = Config(num_nodes=3, strategy="fedavgm")
+    config6 = Config(num_nodes=5, strategy="fedavgm")
+    config7 = Config(num_nodes=2, strategy="fedadam")
+    config8 = Config(num_nodes=3, strategy="fedadam")
+    config9 = Config(num_nodes=5, strategy="fedadam")
 
-    num_nodes_1 = 2
-    fed_strat_1 = "fedavg"
-    config1 = {
-        "num_nodes": num_nodes_1,
-        "strategy": fed_strat_1,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-
-    num_nodes_2 = 3
-    fed_strat2 = "fedavg"
-    config2 = {
-        "num_nodes": num_nodes_2,
-        "strategy": fed_strat2,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-    num_nodes_3 = 5
-    fed_strat_3 = "fedavg"
-    config3 = {
-        "num_nodes": num_nodes_3,
-        "strategy": fed_strat_3,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-
-    num_nodes_4 = 2
-    fed_strat_4 = "fedavgm"
-    config4 = {
-        "num_nodes": num_nodes_4,
-        "strategy": fed_strat_4,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-    num_nodes_5 = 3
-    fed_strat_5 = "fedavgm"
-    config5 = {
-        "num_nodes": num_nodes_5,
-        "strategy": fed_strat_5,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-    num_nodes_6 = 5
-    fed_strat_6 = "fedavgm"
-    config6 = {
-        "num_nodes": num_nodes_6,
-        "strategy": fed_strat_6,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-
-    num_nodes_7 = 2
-    fed_strat_7 = "fedadam"
-    config7 = {
-        "num_nodes": num_nodes_7,
-        "strategy": fed_strat_7,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-    num_nodes_8 = 3
-    fed_strat_8 = "fedadam"
-    config8 = {
-        "num_nodes": num_nodes_8,
-        "strategy": fed_strat_8,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
-    num_nodes_9 = 5
-    fed_strat_9 = "fedadam"
-    config9 = {
-        "num_nodes": num_nodes_9,
-        "strategy": fed_strat_9,
-        "use_async": True,
-        "data_split": data_split,
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "steps_per_epoch": steps_per_epoch,
-        "lr": lr,
-        "federated_type": federated_type,
-        "dataset": dataset,
-        "test_steps": test_steps,
-        "net": net,
-    }
     configs = [
         config1,
         config2,
@@ -180,15 +53,14 @@ if __name__ == "__main__":
     ]
 
     for config in configs:
-        if config["use_async"]:
+        if config.use_async:
             str_use_async = "async"
         else:
             str_use_async = "sync"
-        data_split = config["data_split"]
         wandb.init(
             project="multi-nodes-exp001",
             entity="flwr_p2p",
-            name=f"mnist_{str_use_async}_{config['num_nodes']}nodes_{config['strategy']}_{data_split}",
+            name=f"mnist_{str_use_async}_{config.num_nodes}nodes_{config.strategy}_{config.data_split}",
             config=config,
         )
         federated_learning_runner = FederatedLearningRunner(
