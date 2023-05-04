@@ -1,7 +1,7 @@
 import numpy as np
 
 # from flwr_p2p.keras.example import MnistModelBuilder
-from experiments.simple_mnist_model import SimpleMnistModel
+from experiments.model.simple_mnist_model import SimpleMnistModel
 from experiments.model.keras_models import ResNetModelBuilder
 
 
@@ -21,6 +21,7 @@ class BaseExperimentRunner:
         self.data_split = config.data_split
         self.dataset = config.dataset
         self.net = config.net
+        self.skew_factor = config.skew_factor
 
         self.tracking = tracking
 
@@ -79,14 +80,18 @@ class BaseExperimentRunner:
 
         return partitioned_x_train, partitioned_y_train, x_test, self.y_test
 
-    def create_skewed_partition_split(
-        self, skew_factor: float = 0.80, num_classes: int = 10
-    ):
-        # returns a "skewed" partition of data
+    def create_skewed_partition_split(self, num_classes: int = 10):
+        """returns a "skewed" partition of data
         # Ex: 0.8 means 80% of the data for one node is 0-4 while 20% is 5-9
         # and vice versa for the other node
-        # Note: A skew factor 0f 0.5 would essentially be a random split,
+        # Note: A skew factor 0f 0.0 would essentially be a random split,
         # and 1 would be like a partition split
+        """
+
+        if self.skew_factor == None:
+            # throw error
+            raise ValueError("skew_factor must be set for skewed partition split")
+
         x_train = self.normalize_data(self.x_train)
         x_test = self.normalize_data(self.x_test)
 
@@ -121,7 +126,7 @@ class BaseExperimentRunner:
 
                 # With probability skew_factor, assign examples to the partition,
                 # otherwise randomly assign to a partition.
-                if np.random.random() < skew_factor:
+                if np.random.random() < self.skew_factor:
                     skewed_partitioned_x_train[
                         partition_that_this_class_belongs_to
                     ].append(x_train_by_label[i][j])
