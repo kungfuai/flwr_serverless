@@ -20,8 +20,9 @@ class ResNetModelBuilder:
         self.include_rescaling = include_rescaling
 
     def run(self):
-        if self.net == "ResNet50":
-            backbone = keras_cv.models.ResNet50(
+        if self.net in ["ResNet50"]:
+            fn = getattr(keras_cv.models, self.net)
+            backbone = fn(
                 include_rescaling=self.include_rescaling,
                 include_top=False,
                 weights=self.weights,

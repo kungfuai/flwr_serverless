@@ -32,9 +32,13 @@ class BaseExperimentRunner:
             assert self.net == "simple", f"Net not supported: {self.net} for mnist"
         if self.net == "simple":
             return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
-        elif self.net == "resnet50":
+        elif self.net.startswith("resnet"):
             return [
-                ResNetModelBuilder(lr=self.lr, net="ResNet50", weights="imagenet").run()
+                ResNetModelBuilder(
+                    lr=self.lr,
+                    net=self.net.replace("resnet", "ResNet"),
+                    weights="imagenet",
+                ).run()
                 for _ in range(self.num_nodes)
             ]
 
@@ -51,6 +55,8 @@ class BaseExperimentRunner:
                 self.x_test,
                 self.y_test,
             ) = cifar10.load_data()
+            self.y_train = np.squeeze(self.y_train, -1)
+            self.y_test = np.squeeze(self.y_test, -1)
 
     def normalize_data(self, data):
         image_size = data.shape[1]

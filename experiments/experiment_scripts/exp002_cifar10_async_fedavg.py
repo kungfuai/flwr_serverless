@@ -30,8 +30,9 @@ if __name__ == "__main__":
         "dataset": dataset,
         "strategy": strategy,
         "data_split": data_split,
-        "test_steps": 10,
+        "test_steps": 30,
         "net": "resnet50",
+        # "net": "simple",
     }
 
     config_overides = []

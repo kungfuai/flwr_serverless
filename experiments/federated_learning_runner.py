@@ -49,6 +49,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
             self.x_test,
             self.y_test,
         ) = self.split_data()
+        print("x_test shape:", self.x_test.shape)
+        print("y_test shape:", self.y_test.shape)
         self.train_federated_models()
         self.evaluate()
 
@@ -225,7 +227,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
                     # self.x_test[: self.test_steps * self.batch_size, ...],
                     # self.y_test[: self.test_steps * self.batch_size, ...],
                     batch_size=self.batch_size,
-                    steps=10,
+                    steps=self.test_steps,
                 )
 
         return model_federated

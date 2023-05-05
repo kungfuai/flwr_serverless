@@ -121,15 +121,15 @@ if __name__ == "__main__":
             use_async = "sync"
         data_split = config["data_split"]
         # print(os.getenv("WANDB_PROJECT"))
-        wandb.init(
-            project=os.getenv("WANDB_PROJECT"),
-            entity="flwr_p2p",
-            name=f"mnist_{use_async}_{data_split}_split",
-            config=config,
-        )
+        # wandb.init(
+        #     project=os.getenv("WANDB_PROJECT"),
+        #     entity="flwr_p2p",
+        #     name=f"mnist_{use_async}_{data_split}_split",
+        #     config=config,
+        # )
         federated_learning_runner = FederatedLearningRunner(
             config=config,
-            tracking=True,
+            tracking=False,
         )
         federated_learning_runner.run()
-        wandb.finish()
+        # wandb.finish()
