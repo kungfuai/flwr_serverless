@@ -323,7 +323,20 @@ There are a few key differences between the original $\texttt{FedAvg}$ algorithm
 
 Note that we also provide the functionality to use synchronous federated learning in a serverless fashion. In this case, when clients are attempting to get parameters from other connected nodes, they must weight until all other clients have deposited their weights in the weight store. Then, all clients simultaneously download the weights $\omega$ and aggregate them on the client side. 
 
-\section{Experimental results}
+\section{Experiments}
+
+We designed a series of experiments to study the effect of several factors on the quality of the model and the training time. The factors include:
+
+- whether the strategy is synchronous or asynchronous
+- the federated learning strategy
+- the number of federated nodes
+- the disparity between the federated datasets on different nodes.
+
+The experiments are performed in several datasets and machine learning tasks: MNIST digital classification, CIFAR-10 image classification, an NLP NER benchmark, and a LLM instruction fine-tuning task.
+
+\subsection{Experiments on MNIST}
+
+
 
 % $m \gets \max(C \cdot K, 1)$\;
 % $S_t \gets (\text{random set of } m \text{ clients})$\;
