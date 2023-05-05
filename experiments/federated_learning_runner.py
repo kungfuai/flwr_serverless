@@ -3,6 +3,9 @@ from typing import List, Any
 from tensorflow import keras
 from wandb.keras import WandbCallback
 
+from flwr.common import ndarrays_to_parameters
+
+
 from flwr.server.strategy import (
     FedAvg,
     FedAdam,
@@ -29,22 +32,15 @@ class FederatedLearningRunner(BaseExperimentRunner):
     def __init__(
         self,
         config,
-        num_nodes,
-        federated_type,
-        use_async,
-        dataset,
-        strategy,
+        **kwargs,
     ):
-        super().__init__(config, num_nodes, dataset)
-        self.federated_type = federated_type
+        super().__init__(config, **kwargs)
         self.storage_backend: Any = InMemoryFolder()
-        self.use_async_node = use_async
-        self.num_rounds = self.epochs  # ??? not sure what this is
-        self.test_steps = 10  # ??? not sure what this is
-        self.strategy_name = strategy
-        self.data_split = config["data_split"]
+        # In one round, each node trains on its local data for one epoch.
+        self.num_rounds = self.epochs  # number of federated rounds (similar to epochs)
 
     def run(self):
+        print("Net:", self.net)
         self.models = self.create_models()
         self.set_strategy()
         (
@@ -58,13 +54,29 @@ class FederatedLearningRunner(BaseExperimentRunner):
 
     def set_strategy(self):
         if self.strategy_name == "fedavg":
-            self.strategy = FedAvg()
+            self.strategies = [FedAvg() for _ in range(self.num_nodes)]
         elif self.strategy_name == "fedavgm":
-            self.strategy = FedAvgM()
-        # elif self.strategy_name == "fedadam":
-        #     self.strategy = FedAdam()
-        # elif self.strategy_name == "fedopt":
-        #     self.strategy = FedOpt()
+            self.strategies = [FedAvgM() for _ in range(self.num_nodes)]
+        elif self.strategy_name == "fedadam":
+            self.strategies = [
+                FedAdam(
+                    initial_parameters=ndarrays_to_parameters(
+                        self.models[i].get_weights()
+                    )
+                )
+                for i in range(self.num_nodes)
+            ]
+        elif self.strategy_name == "fedopt":
+            self.strategies = [
+                FedOpt(
+                    initial_parameters=ndarrays_to_parameters(
+                        self.models[i].get_weights()
+                    )
+                )
+                for i in range(self.num_nodes)
+            ]
+        elif self.strategy_name == "fedmedian":
+            self.strategies = [FedMedian() for _ in range(self.num_nodes)]
         # elif self.strategy_name == "fedyogi":
         #     self.strategy = FedYogi()
         # elif self.strategy_name == "fedadagrad":
@@ -77,6 +89,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
             return self.random_split()
         elif self.data_split == "partitioned":
             return self.create_partitioned_datasets()
+        elif self.data_split == "skewed":
+            return self.create_skewed_partition_split()
         else:
             raise ValueError("Data split not supported")
 
@@ -116,15 +130,19 @@ class FederatedLearningRunner(BaseExperimentRunner):
         with ThreadPoolExecutor(max_workers=self.num_nodes) as ex:
             futures = []
             for i_node in range(self.num_nodes):
+                callbacks = [
+                    callbacks_per_client[i_node],
+                ]
+                if self.tracking:
+                    callbacks.append(CustomWandbCallback(i_node))
+
+                # assert self.test_steps is None
                 future = ex.submit(
                     model_federated[i_node].fit,
                     x=train_loaders[i_node],
                     epochs=self.num_rounds,
                     steps_per_epoch=self.steps_per_epoch,
-                    callbacks=[
-                        CustomWandbCallback(i_node),
-                        callbacks_per_client[i_node],
-                    ],
+                    callbacks=callbacks,
                     validation_data=(self.x_test, self.y_test),
                     validation_steps=self.test_steps,
                     validation_batch_size=self.batch_size,
@@ -143,12 +161,21 @@ class FederatedLearningRunner(BaseExperimentRunner):
         self.lag = 0.1
         nodes = self.create_nodes()
         num_partitions = self.num_nodes
+        if self.test_steps is None:
+            x_test = self.x_test
+            y_test = self.y_test
+        else:
+            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
+
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],
                 num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
-                x_test=self.x_test[: self.test_steps * self.batch_size, ...],
-                y_test=self.y_test[: self.test_steps * self.batch_size, ...],
+                x_test=x_test,
+                y_test=y_test,
+                # x_test=self.x_test[: self.test_steps * self.batch_size, ...],
+                # y_test=self.y_test[: self.test_steps * self.batch_size, ...],
             )
             for i in range(num_partitions)
         ]
@@ -172,6 +199,12 @@ class FederatedLearningRunner(BaseExperimentRunner):
             x[0] for x in sorted(execution_sequence, key=lambda x: x[1])
         ]
         print(f"Execution sequence: {execution_sequence}")
+        if self.test_steps is None:
+            x_test = self.x_test
+            y_test = self.y_test
+        else:
+            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
         for i_node in execution_sequence:
             print("Training node", i_node)
             model_federated[i_node].fit(
@@ -179,10 +212,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 epochs=num_epochs_per_round,
                 steps_per_epoch=self.steps_per_epoch,
                 callbacks=[callbacks_per_client[i_node]],
-                validation_data=(
-                    self.x_test[: self.test_steps * self.batch_size, ...],
-                    self.y_test[: self.test_steps * self.batch_size, ...],
-                ),
+                validation_data=(x_test, y_test),
                 validation_steps=self.test_steps,
                 validation_batch_size=self.batch_size,
             )
@@ -190,8 +220,10 @@ class FederatedLearningRunner(BaseExperimentRunner):
             if i_node == 0:
                 print("Evaluating on the combined test set:")
                 model_federated[0].evaluate(
-                    self.x_test[: self.test_steps * self.batch_size, ...],
-                    self.y_test[: self.test_steps * self.batch_size, ...],
+                    x_test,
+                    y_test,
+                    # self.x_test[: self.test_steps * self.batch_size, ...],
+                    # self.y_test[: self.test_steps * self.batch_size, ...],
                     batch_size=self.batch_size,
                     steps=10,
                 )
@@ -217,18 +249,21 @@ class FederatedLearningRunner(BaseExperimentRunner):
             self.get_train_dataloader_for_node(i) for i in range(num_partitions)
         ]
 
-        wandb_callbacks = [WandbCallback() for i in range(num_partitions)]
+        if self.tracking:
+            wandb_callbacks = [WandbCallback() for i in range(num_partitions)]
         for i_round in range(num_federated_rounds):
             print("\n============ Round", i_round)
+            callbacks = [
+                callbacks_per_client[i_partition],
+            ]
+            if self.tracking:
+                callbacks.append(wandb_callbacks[i_partition])
             for i_partition in range(num_partitions):
                 model_federated[i_partition].fit(
                     train_loaders[i_partition],
                     epochs=num_epochs_per_round,
                     steps_per_epoch=self.steps_per_epoch,
-                    callbacks=[
-                        # wandb_callbacks[i_partition],
-                        callbacks_per_client[i_partition],
-                    ],
+                    callbacks=callbacks,
                 )
             print("Evaluating on the combined test set:")
             model_federated[0].evaluate(
@@ -241,21 +276,21 @@ class FederatedLearningRunner(BaseExperimentRunner):
         return model_federated
 
     def create_nodes(self):
-        if self.use_async_node:
+        if self.use_async:
             nodes = [
                 AsyncFederatedNode(
-                    shared_folder=self.storage_backend, strategy=self.strategy
+                    shared_folder=self.storage_backend, strategy=self.strategies[i]
                 )
-                for _ in range(self.num_nodes)
+                for i in range(self.num_nodes)
             ]
         else:
             nodes = [
                 SyncFederatedNode(
                     shared_folder=self.storage_backend,
-                    strategy=self.strategy,
+                    strategy=self.strategies[i],
                     num_nodes=self.num_nodes,
                 )
-                for _ in range(self.num_nodes)
+                for i in range(self.num_nodes)
             ]
         return nodes
 
@@ -265,5 +300,5 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 self.x_test,
                 self.y_test,
                 batch_size=self.batch_size,
-                steps=self.steps_per_epoch,
+                steps=self.test_steps,
             )
