@@ -4,7 +4,7 @@ from wandb.keras import WandbCallback
 
 from flwr_p2p.keras.example import MnistModelBuilder
 
-from experiments.base_experiment_runner import BaseExperimentRunner
+from experiments.utils.base_experiment_runner import BaseExperimentRunner
 
 
 class CentralizedRunner(BaseExperimentRunner):

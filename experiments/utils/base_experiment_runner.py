@@ -1,26 +1,57 @@
 import numpy as np
 
 # from flwr_p2p.keras.example import MnistModelBuilder
-from experiments.simple_mnist_model import SimpleMnistModel
+from experiments.model.simple_mnist_model import SimpleMnistModel
+from dataclasses import dataclass
 from experiments.model.keras_models import ResNetModelBuilder
+
+
+@dataclass
+class Config:
+    # non shared config parameters
+    num_nodes: int
+    strategy: str
+    project: str = "experiments"
+    track: bool = False
+
+    # shared config parameters
+    use_async: bool = True
+    federated_type: str = "concurrent"
+    dataset: str = "mnist"
+    epochs: int = 100
+    batch_size: int = 32
+    steps_per_epoch: int = 64
+    lr: float = 0.001
+    test_steps: int = None
+    net: str = "simple"
+    data_split: str = "skewed"
+    skew_factor: float = 0.9
+
+    # Ignore, for logging purposes
+    use_default_configs: bool = False
 
 
 class BaseExperimentRunner:
     def __init__(self, config, tracking=False):
+        if isinstance(config, dict):
+            config = Config(**config)
+        assert isinstance(
+            config, Config
+        ), f"config must be of type Config, got {type(config)}"
         self.config = config
-        self.num_nodes = config["num_nodes"]
-        self.batch_size = config["batch_size"]
-        self.epochs = config["epochs"]
-        self.steps_per_epoch = config["steps_per_epoch"]
-        self.lr = config["lr"]
+        self.num_nodes = config.num_nodes
+        self.batch_size = config.batch_size
+        self.epochs = config.epochs
+        self.steps_per_epoch = config.steps_per_epoch
+        self.lr = config.lr
         # In experiment tracking, log the actual test steps and test data size
-        self.test_steps = config.get("test_steps", None)
-        self.use_async = config["use_async"]
-        self.federated_type = config["federated_type"]
-        self.strategy_name = config["strategy"]
-        self.data_split = config["data_split"]
-        self.dataset = config["dataset"]
-        self.net = config["net"]
+        self.test_steps = config.test_steps
+        self.use_async = config.use_async
+        self.federated_type = config.federated_type
+        self.strategy_name = config.strategy
+        self.data_split = config.data_split
+        self.dataset = config.dataset
+        self.net = config.net
 
         self.tracking = tracking
 
@@ -32,13 +63,9 @@ class BaseExperimentRunner:
             assert self.net == "simple", f"Net not supported: {self.net} for mnist"
         if self.net == "simple":
             return [SimpleMnistModel(lr=self.lr).run() for _ in range(self.num_nodes)]
-        elif self.net.startswith("resnet"):
+        elif self.net == "resnet50":
             return [
-                ResNetModelBuilder(
-                    lr=self.lr,
-                    net=self.net.replace("resnet", "ResNet"),
-                    weights="imagenet",
-                ).run()
+                ResNetModelBuilder(lr=self.lr, net="ResNet50", weights="imagenet").run()
                 for _ in range(self.num_nodes)
             ]
 
@@ -55,8 +82,6 @@ class BaseExperimentRunner:
                 self.x_test,
                 self.y_test,
             ) = cifar10.load_data()
-            self.y_train = np.squeeze(self.y_train, -1)
-            self.y_test = np.squeeze(self.y_test, -1)
 
     def normalize_data(self, data):
         image_size = data.shape[1]
@@ -85,55 +110,85 @@ class BaseExperimentRunner:
 
         return partitioned_x_train, partitioned_y_train, x_test, self.y_test
 
-    def create_skewed_partition_split(self, skew_factor: float = 0.90):
-        # only works for 2 nodes at the moment
+    def create_skewed_partition_split(
+        self, skew_factor: float = 0.80, num_classes: int = 10
+    ):
         # returns a "skewed" partition of data
         # Ex: 0.8 means 80% of the data for one node is 0-4 while 20% is 5-9
         # and vice versa for the other node
         # Note: A skew factor 0f 0.5 would essentially be a random split,
-        # and 1 would be like a normal partition
-
-        # num_partitions = self.num_nodes
+        # and 1 would be like a partition split
         x_train = self.normalize_data(self.x_train)
         x_test = self.normalize_data(self.x_test)
 
-        x_train_by_label = [[] for _ in range(10)]
-        y_train_by_label = [[] for _ in range(10)]
+        x_train_by_label = [[] for _ in range(num_classes)]
+        y_train_by_label = [[] for _ in range(num_classes)]
         for i in range(len(self.y_train)):
-            label = self.y_train[i]
-            x_train_by_label[label].append(x_train[i])
+            label = int(self.y_train[i])
+            x_train_example = x_train[i]
+            x_train_by_label[label].append(x_train_example)
             y_train_by_label[label].append(label)
 
-        skewed_partitioned_x_train = [[], []]
-        skewed_partitioned_y_train = [[], []]
-        for i in range(10):
-            num_samples = len(x_train_by_label[i])
-            num_samples_for_node_1 = int(num_samples * skew_factor)
-            skewed_partitioned_x_train[int(i / 5)].extend(
-                x_train_by_label[i][:num_samples_for_node_1]
-            )
-            skewed_partitioned_y_train[int(i / 5)].extend(
-                y_train_by_label[i][:num_samples_for_node_1]
-            )
-            skewed_partitioned_x_train[int((i / 5)) - 1].extend(
-                x_train_by_label[i][num_samples_for_node_1:]
-            )
-            skewed_partitioned_y_train[int((i / 5)) - 1].extend(
-                y_train_by_label[i][num_samples_for_node_1:]
-            )
+        # Partition just the classes into n_splits partitions.
+        splitted_classes = np.array_split(np.arange(num_classes), self.num_nodes)
+        print("splitted_classes", splitted_classes)
+        # splitted_classes should look like [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]]
+        # Example:
+        # Partition 0:
+        #   mostly from 0, 1, 2, 3, 4, and a small amount of 5, 6, 7, 8, 9
+
+        def find_partition_that_this_class_belongs_to(class_idx):
+            for i, partition in enumerate(splitted_classes):
+                if class_idx in partition:
+                    return i
+
+        skewed_partitioned_x_train = [[] for _ in range(self.num_nodes)]
+        skewed_partitioned_y_train = [[] for _ in range(self.num_nodes)]
+        for i in range(num_classes):
+            for j in range(len(x_train_by_label[i])):
+                class_idx = i
+                partition_that_this_class_belongs_to = (
+                    find_partition_that_this_class_belongs_to(class_idx)
+                )
+
+                # With probability skew_factor, assign examples to the partition,
+                # otherwise randomly assign to a partition.
+                if np.random.random() < skew_factor:
+                    skewed_partitioned_x_train[
+                        partition_that_this_class_belongs_to
+                    ].append(x_train_by_label[i][j])
+                    skewed_partitioned_y_train[
+                        partition_that_this_class_belongs_to
+                    ].append(y_train_by_label[i][j])
+                else:
+                    # Randomly assign to a partition.
+                    randomly_assigned_partition = int(
+                        np.random.random() * self.num_nodes
+                    )
+                    skewed_partitioned_x_train[randomly_assigned_partition].append(
+                        x_train_by_label[i][j]
+                    )
+                    skewed_partitioned_y_train[randomly_assigned_partition].append(
+                        y_train_by_label[i][j]
+                    )
 
         # convert to numpy arrays
-        skewed_partitioned_x_train[0] = np.asarray(skewed_partitioned_x_train[0])
-        skewed_partitioned_x_train[1] = np.asarray(skewed_partitioned_x_train[1])
-        skewed_partitioned_y_train[0] = np.asarray(skewed_partitioned_y_train[0])
-        skewed_partitioned_y_train[1] = np.asarray(skewed_partitioned_y_train[1])
+        for i in range(self.num_nodes):
+            skewed_partitioned_x_train[i] = np.asarray(skewed_partitioned_x_train[i])
+            skewed_partitioned_y_train[i] = np.asarray(skewed_partitioned_y_train[i])
 
         # shuffle data
-        for i in range(2):
+        for i in range(self.num_nodes):
             num_train = skewed_partitioned_x_train[i].shape[0]
             indices = np.random.permutation(num_train)
             skewed_partitioned_x_train[i] = skewed_partitioned_x_train[i][indices]
             skewed_partitioned_y_train[i] = skewed_partitioned_y_train[i][indices]
+
+        # check distribution
+        for i in range(self.num_nodes):
+            print(f"Partition {i}:")
+            for j in range(10):
+                print(f"Label {j}: {np.sum(skewed_partitioned_y_train[i] == j)}")
 
         return (
             skewed_partitioned_x_train,
@@ -208,15 +263,9 @@ class BaseExperimentRunner:
         return partitioned_x_train, partitioned_y_train
 
 
-if __name__ == "__main__":
-    config = {
-        "epochs": 256,
-        "batch_size": 32,
-        "steps_per_epoch": 8,
-        "lr": 0.001,
-        "num_nodes": 2,
-    }
-    base_exp = BaseExperimentRunner(config, num_nodes=2)
+# if __name__ == "__main__":
 
-    base_exp.random_split()
-    base_exp.create_skewed_partition_split()
+# base_exp = BaseExperimentRunner(config, num_nodes=2)
+
+# base_exp.random_split()
+# base_exp.create_skewed_partition_split()

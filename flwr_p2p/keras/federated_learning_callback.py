@@ -48,5 +48,6 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
                     steps=self.test_steps,
                     verbose=2,
                 )
+                print("Done evaluating inside callback =====================\n")
         else:
             print("waiting for other nodes to send their parameters")

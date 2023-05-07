@@ -3,7 +3,7 @@ import wandb
 # import set_random_seed
 from tensorflow.keras.utils import set_random_seed
 
-from experiments.federated_learning_runner import FederatedLearningRunner
+from experiments.utils.federated_learning_runner import FederatedLearningRunner
 
 # main function
 if __name__ == "__main__":

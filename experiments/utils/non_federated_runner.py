@@ -1,7 +1,7 @@
 from wandb.keras import WandbCallback
 
-from experiments.base_experiment_runner import BaseExperimentRunner
-from experiments.custom_wandb_callback import CustomWandbCallback
+from experiments.utils.base_experiment_runner import BaseExperimentRunner
+from experiments.utils.custom_wandb_callback import CustomWandbCallback
 
 
 class NonFederatedRunner(BaseExperimentRunner):

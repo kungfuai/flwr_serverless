@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 from typing import List, Any
 from tensorflow import keras
 from wandb.keras import WandbCallback
@@ -22,10 +23,8 @@ from flwr_p2p.federated_node.async_federated_node import AsyncFederatedNode
 from flwr_p2p.federated_node.sync_federated_node import SyncFederatedNode
 from flwr_p2p.shared_folder.in_memory_folder import InMemoryFolder
 from flwr_p2p.keras.federated_learning_callback import FlwrFederatedCallback
-
-
-from experiments.base_experiment_runner import BaseExperimentRunner
-from experiments.custom_wandb_callback import CustomWandbCallback
+from experiments.utils.base_experiment_runner import BaseExperimentRunner, Config
+from experiments.utils.custom_wandb_callback import CustomWandbCallback
 
 
 class FederatedLearningRunner(BaseExperimentRunner):
@@ -40,7 +39,19 @@ class FederatedLearningRunner(BaseExperimentRunner):
         self.num_rounds = self.epochs  # number of federated rounds (similar to epochs)
 
     def run(self):
-        print("Net:", self.net)
+        config: Config = self.config
+        if config.track:
+            import wandb
+
+            strategy = self.config.strategy
+            num_nodes = self.config.num_nodes
+            data_split = self.config.data_split
+            wandb.init(
+                project=self.config.project,
+                entity=os.getenv("WANDB_ENTITY", "example_entity"),
+                name=f"async_{strategy}_{num_nodes}_nodes_{data_split}_split",
+                config=config.__dict__,
+            )
         self.models = self.create_models()
         self.set_strategy()
         (
@@ -53,6 +64,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
         print("y_test shape:", self.y_test.shape)
         self.train_federated_models()
         self.evaluate()
+        if config.track:
+            wandb.finish()
 
     def set_strategy(self):
         if self.strategy_name == "fedavg":
@@ -87,12 +100,13 @@ class FederatedLearningRunner(BaseExperimentRunner):
             raise ValueError("Strategy not supported")
 
     def split_data(self):
+        config: Config = self.config
         if self.data_split == "random":
             return self.random_split()
         elif self.data_split == "partitioned":
             return self.create_partitioned_datasets()
         elif self.data_split == "skewed":
-            return self.create_skewed_partition_split()
+            return self.create_skewed_partition_split(skew_factor=config.skew_factor)
         else:
             raise ValueError("Data split not supported")
 

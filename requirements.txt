@@ -1,5 +1,9 @@
 flwr
 python-dotenv
+wandb
+boto3
+tensorflow>=2.8
+keras-cv
 
 # Troubleshooting
 #

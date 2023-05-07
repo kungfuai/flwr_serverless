@@ -1,13 +1,14 @@
 import pickle
 import time
 from typing import Any
-import boto3
 
 
 class S3Folder:
     def __init__(
         self, directory: str = None, retry_sleep_time: int = 3, max_retry: int = 3
     ):
+        import boto3
+
         self.directory = directory
         if directory.startswith("s3://"):
             directory = directory[5:]

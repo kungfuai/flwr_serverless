@@ -1,7 +1,7 @@
 import wandb
 from tensorflow.keras.utils import set_random_seed
 
-from experiments.non_federated_runner import NonFederatedRunner
+from experiments.utils.non_federated_runner import NonFederatedRunner
 
 # main function
 if __name__ == "__main__":
