@@ -28,7 +28,7 @@ class Config:
     skew_factor: float = 0.9
 
     # Ignore, for logging purposes
-    use_default_configs: bool = False
+    # use_default_configs: bool = False
 
 
 class BaseExperimentRunner:
@@ -82,6 +82,8 @@ class BaseExperimentRunner:
                 self.x_test,
                 self.y_test,
             ) = cifar10.load_data()
+            self.y_train = np.squeeze(self.y_train, -1)
+            self.y_test = np.squeeze(self.y_test, -1)
 
     def normalize_data(self, data):
         image_size = data.shape[1]

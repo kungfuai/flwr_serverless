@@ -46,7 +46,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
             strategy = self.config.strategy
             num_nodes = self.config.num_nodes
             data_split = self.config.data_split
-            name = f"async_{strategy}_{num_nodes}_nodes_{data_split}"
+            sync_or_async: str = "async" if self.config.use_async else "sync"
+            name = f"{sync_or_async}_{strategy}_{num_nodes}_nodes_{data_split}"
             if data_split == "skewed":
                 name += f"_{self.config.skew_factor}"
             wandb.init(

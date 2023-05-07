@@ -14,8 +14,8 @@ if __name__ == "__main__":
     base_config = {
         "project": "cifar10",
         "epochs": 50,
-        "batch_size": 16,
-        "steps_per_epoch": 300,
+        "batch_size": 32,
+        "steps_per_epoch": 200,
         "lr": 0.001,
         "num_nodes": 2,
         "use_async": False,
@@ -46,9 +46,6 @@ if __name__ == "__main__":
                 "use_async": True,
             },
             {
-                "use_async": False,
-            },
-            {
                 "use_async": True,
                 "data_split": "skewed",
                 "skew_factor": 0.9,
@@ -75,6 +72,10 @@ if __name__ == "__main__":
                 "use_async": True,
                 "data_split": "partitioned",
             },
+            # TODO: synchroneous strategy currently crashes
+            # {
+            #     "use_async": False,
+            # },
         ]
         for c in config_overides:
             c["track"] = True
