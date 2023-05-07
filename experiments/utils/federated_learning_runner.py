@@ -46,10 +46,13 @@ class FederatedLearningRunner(BaseExperimentRunner):
             strategy = self.config.strategy
             num_nodes = self.config.num_nodes
             data_split = self.config.data_split
+            name = f"async_{strategy}_{num_nodes}_nodes_{data_split}"
+            if data_split == "skewed":
+                name += f"_{self.config.skew_factor}"
             wandb.init(
                 project=self.config.project,
                 entity=os.getenv("WANDB_ENTITY", "example_entity"),
-                name=f"async_{strategy}_{num_nodes}_nodes_{data_split}_split",
+                name=name,
                 config=config.__dict__,
             )
         self.models = self.create_models()

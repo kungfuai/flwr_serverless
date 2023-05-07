@@ -13,9 +13,9 @@ if __name__ == "__main__":
     # base config
     base_config = {
         "project": "cifar10",
-        "epochs": 25,
-        "batch_size": 32,
-        "steps_per_epoch": 200,
+        "epochs": 50,
+        "batch_size": 16,
+        "steps_per_epoch": 300,
         "lr": 0.001,
         "num_nodes": 2,
         "use_async": False,
@@ -40,7 +40,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.use_default_configs:
+        # Treatments
         config_overides = [
+            {
+                "use_async": True,
+            },
+            {
+                "use_async": False,
+            },
             {
                 "use_async": True,
                 "data_split": "skewed",
@@ -58,9 +65,15 @@ if __name__ == "__main__":
             },
             {
                 "use_async": True,
+                "num_nodes": 3,
             },
             {
-                "use_async": False,
+                "use_async": True,
+                "num_nodes": 5,
+            },
+            {
+                "use_async": True,
+                "data_split": "partitioned",
             },
         ]
         for c in config_overides:
