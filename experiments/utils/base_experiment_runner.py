@@ -84,6 +84,8 @@ class BaseExperimentRunner:
             ) = cifar10.load_data()
             self.y_train = np.squeeze(self.y_train, -1)
             self.y_test = np.squeeze(self.y_test, -1)
+        assert len(self.y_train.shape) == 1, f"y_train shape: {self.y_train.shape}"
+        assert len(self.y_test.shape) == 1, f"y_test shape: {self.y_test.shape}"
 
     def normalize_data(self, data):
         image_size = data.shape[1]

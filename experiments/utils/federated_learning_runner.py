@@ -136,8 +136,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],
-                x_test=self.x_test,
-                y_test=self.y_test,
+                # x_test=self.x_test,
+                # y_test=self.y_test,
                 num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
             )
             for i in range(num_partitions)
@@ -157,14 +157,17 @@ class FederatedLearningRunner(BaseExperimentRunner):
                     callbacks.append(CustomWandbCallback(i_node))
 
                 # assert self.test_steps is None
+                x_test = self.x_test[: self.config.test_steps * self.config.batch_size]
+                y_test = self.y_test[: self.config.test_steps * self.config.batch_size]
                 future = ex.submit(
                     model_federated[i_node].fit,
                     x=train_loaders[i_node],
                     epochs=self.num_rounds,
                     steps_per_epoch=self.steps_per_epoch,
                     callbacks=callbacks,
-                    validation_data=(self.x_test, self.y_test),
-                    validation_steps=self.test_steps,
+                    validation_data=(x_test, y_test),
+                    # validation_data=(self.x_test, self.y_test),
+                    # validation_steps=self.test_steps,
                     validation_batch_size=self.batch_size,
                 )
                 futures.append(future)
@@ -239,13 +242,17 @@ class FederatedLearningRunner(BaseExperimentRunner):
 
             if i_node == 0:
                 print("Evaluating on the combined test set:")
-                model_federated[0].evaluate(
+                assert (
+                    len(y_test.shape) == 1
+                ), f"y_test should be 1D, got {y_test.shape}"
+                evaluation_metrics = model_federated[0].evaluate(
                     x_test,
                     y_test,
                     # self.x_test[: self.test_steps * self.batch_size, ...],
                     # self.y_test[: self.test_steps * self.batch_size, ...],
                     batch_size=self.batch_size,
                     steps=self.test_steps,
+                    return_dict=True,
                 )
 
         return model_federated
@@ -286,6 +293,9 @@ class FederatedLearningRunner(BaseExperimentRunner):
                     callbacks=callbacks,
                 )
             print("Evaluating on the combined test set:")
+            assert (
+                len(self.y_test.shape) == 1
+            ), f"y_test should be 1D, got {self.y_test.shape}"
             model_federated[0].evaluate(
                 self.x_test,
                 self.y_test,
@@ -315,10 +325,18 @@ class FederatedLearningRunner(BaseExperimentRunner):
         return nodes
 
     def evaluate(self):
-        for i_node in range(self.num_nodes):
+        for i_node in [0]:  # range(self.num_nodes):
             loss1, accuracy1 = self.models[i_node].evaluate(
                 self.x_test,
                 self.y_test,
                 batch_size=self.batch_size,
                 steps=self.test_steps,
             )
+            if self.config.track:
+                import wandb
+
+                to_log = {
+                    "test_accuracy": accuracy1,
+                    "test_loss": loss1,
+                }
+                wandb.log(to_log)
