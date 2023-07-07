@@ -39,6 +39,13 @@ model.fit(dataset, callbacks=[callback])
 The asynchronous FL node does not wait to sync with other nodes. It takes the latest
 checkpoints from other nodes and performs the aggregation according to the specified strategy.
 
-### Experiment with different strategies
+### Running experiments
 
 To make it easier to experimemt with different strategies, we provide utility classes like `flwr.keras.example.FederatedLearningTestRun`. This allows you to configure the dataset partition, strategy and concurrency. Please use this as an example to develop your own experiments.
+
+To reproduce experiments reported in the paper, you can do
+
+```
+python -m experiments.experiment_scripts.exp1_mnist_async_fedavg
+python -m experiments.experiment_scripts.exp2_cifar10
+```

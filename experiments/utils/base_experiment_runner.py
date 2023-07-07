@@ -28,7 +28,7 @@ class Config:
     skew_factor: float = 0.9
 
     # Ignore, for logging purposes
-    # use_default_configs: bool = False
+    use_default_configs: bool = False
 
 
 class BaseExperimentRunner:

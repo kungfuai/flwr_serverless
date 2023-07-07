@@ -17,20 +17,20 @@ if __name__ == "__main__":
 
     # base config
     base_config = {
-        "project": "cifar10",
-        "epochs": 50,
+        "project": "mnist",
+        "epochs": 20,
         "batch_size": 32,
         "steps_per_epoch": 200,
         "lr": 0.001,
         "num_nodes": 2,
         "use_async": False,
         "federated_type": "concurrent",
-        "dataset": "cifar10",
+        "dataset": "mnist",
         "strategy": "fedavg",
         "data_split": "random",
         "skew_factor": 0.9,
         "test_steps": 50,
-        "net": "resnet50",
+        "net": "simple",
         "track": False,
     }
     for key, value in base_config.items():
