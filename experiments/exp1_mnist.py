@@ -77,10 +77,10 @@ if __name__ == "__main__":
                 "use_async": True,
                 "data_split": "partitioned",
             },
-            # TODO: synchroneous strategy currently crashes
-            # {
-            #     "use_async": False,
-            # },
+            {
+                "use_async": False,
+            },
+            # TODO: add more sync variants
         ]
         for c in config_overides:
             c["track"] = True
