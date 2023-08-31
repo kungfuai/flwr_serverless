@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     wandb.init(
         project="sync-vs-async",
-        entity="flwr_p2p",
+        entity="flwr_serverless",
         name=f"{sync}_{strategy}_{num_nodes}_nodes_{data_split}_split",
         config=config,
     )

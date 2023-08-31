@@ -254,7 +254,7 @@ For example, with TensorFlow, the following is sufficient to launch and experime
 \begin{lstlisting}[language=Python]
 # Create a FL Node that has a strategy and a shared folder.
 from flwr.server.strategy import FedAvg
-from flwr_p2p import AsyncFederatedNode, S3Folder
+from flwr_serverless import AsyncFederatedNode, S3Folder
 
 strategy = FedAvg()
 shared_folder = S3Folder(directory="mybucket/experiment1")
