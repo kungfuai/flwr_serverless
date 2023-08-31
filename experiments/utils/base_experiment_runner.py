@@ -1,6 +1,6 @@
 import numpy as np
 
-# from flwr_p2p.keras.example import MnistModelBuilder
+# from flwr_serverless.keras.example import MnistModelBuilder
 from experiments.model.simple_mnist_model import SimpleMnistModel
 from dataclasses import dataclass
 from experiments.model.keras_models import ResNetModelBuilder
@@ -28,7 +28,7 @@ class Config:
     skew_factor: float = 0.9
 
     # Ignore, for logging purposes
-    # use_default_configs: bool = False
+    use_default_configs: bool = False
 
 
 class BaseExperimentRunner:

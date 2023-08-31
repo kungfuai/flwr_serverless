@@ -123,7 +123,7 @@ if __name__ == "__main__":
         # print(os.getenv("WANDB_PROJECT"))
         # wandb.init(
         #     project=os.getenv("WANDB_PROJECT"),
-        #     entity="flwr_p2p",
+        #     entity="flwr_serverless",
         #     name=f"mnist_{use_async}_{data_split}_split",
         #     config=config,
         # )

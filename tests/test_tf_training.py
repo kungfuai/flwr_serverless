@@ -14,12 +14,12 @@ from flwr.common import (
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAvgM
 from uuid import uuid4
-from flwr_p2p.federated_node.async_federated_node import AsyncFederatedNode
-from flwr_p2p.federated_node.sync_federated_node import SyncFederatedNode
-from flwr_p2p.shared_folder.in_memory_folder import InMemoryFolder
-from flwr_p2p.shared_folder.local_folder import LocalFolder
-from flwr_p2p.keras.federated_learning_callback import FlwrFederatedCallback
-from flwr_p2p.keras.example import (
+from flwr_serverless.federated_node.async_federated_node import AsyncFederatedNode
+from flwr_serverless.federated_node.sync_federated_node import SyncFederatedNode
+from flwr_serverless.shared_folder.in_memory_folder import InMemoryFolder
+from flwr_serverless.shared_folder.local_folder import LocalFolder
+from flwr_serverless.keras.federated_learning_callback import FlwrFederatedCallback
+from flwr_serverless.keras.example import (
     FederatedLearningTestRun,
     MnistModelBuilder,
     split_training_data_into_paritions,

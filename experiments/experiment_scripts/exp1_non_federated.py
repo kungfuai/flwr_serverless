@@ -35,7 +35,7 @@ if __name__ == "__main__":
     dataset = "mnist"
 
     wandb.init(
-        project="test-project", entity="flwr_p2p", name="non_federated", config=config
+        project="test-project", entity="flwr_serverless", name="non_federated", config=config
     )
     nonfederated_runner = NonFederatedRunner(config, num_nodes, dataset)
     nonfederated_runner.run()

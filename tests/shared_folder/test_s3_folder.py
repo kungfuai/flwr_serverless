@@ -2,7 +2,7 @@ import boto3
 import pytest
 import numpy as np
 from moto import mock_s3
-from flwr_p2p.shared_folder.s3_folder import S3Folder
+from flwr_serverless.shared_folder.s3_folder import S3Folder
 
 
 @mock_s3

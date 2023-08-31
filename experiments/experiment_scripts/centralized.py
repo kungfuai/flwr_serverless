@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     # federeated run w/ FedAvg
     wandb.init(
-        project="experiments", entity="flwr_p2p", name="centralized", config=config
+        project="experiments", entity="flwr_serverless", name="centralized", config=config
     )
     centralized_runner = CentralizedRunner(config, num_nodes, dataset)
     centralized_runner.run()

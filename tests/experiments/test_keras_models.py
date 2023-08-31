@@ -6,8 +6,8 @@ warnings.filterwarnings(
 import numpy as np
 from flwr.server.strategy import FedAvg
 from uuid import uuid4
-from flwr_p2p.shared_folder.in_memory_folder import InMemoryFolder
-from flwr_p2p.keras.example import (
+from flwr_serverless.shared_folder.in_memory_folder import InMemoryFolder
+from flwr_serverless.keras.example import (
     FederatedLearningTestRun,
 )
 from experiments.model.keras_models import ResNetModelBuilder

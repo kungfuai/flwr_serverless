@@ -2,7 +2,7 @@ import numpy as np
 from wandb.keras import WandbCallback
 
 
-from flwr_p2p.keras.example import MnistModelBuilder
+from flwr_serverless.keras.example import MnistModelBuilder
 
 from experiments.utils.base_experiment_runner import BaseExperimentRunner
 

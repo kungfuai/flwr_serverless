@@ -19,10 +19,10 @@ from flwr.server.strategy import (
 )
 
 
-from flwr_p2p.federated_node.async_federated_node import AsyncFederatedNode
-from flwr_p2p.federated_node.sync_federated_node import SyncFederatedNode
-from flwr_p2p.shared_folder.in_memory_folder import InMemoryFolder
-from flwr_p2p.keras.federated_learning_callback import FlwrFederatedCallback
+from flwr_serverless.federated_node.async_federated_node import AsyncFederatedNode
+from flwr_serverless.federated_node.sync_federated_node import SyncFederatedNode
+from flwr_serverless.shared_folder.in_memory_folder import InMemoryFolder
+from flwr_serverless.keras.federated_learning_callback import FlwrFederatedCallback
 from experiments.utils.base_experiment_runner import BaseExperimentRunner, Config
 from experiments.utils.custom_wandb_callback import CustomWandbCallback
 

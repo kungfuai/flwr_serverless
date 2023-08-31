@@ -3,7 +3,7 @@ A Flower ([flwr](https://flower.dev/)) extension, to enable peer-to-peer federat
 ## Install
 
 ```
-pip install https://github.com/kungfuai/flwr_p2p.git
+pip install https://github.com/kungfuai/flwr_serverless.git
 ```
 
 ## Usage for tensorflow
@@ -14,7 +14,7 @@ pip install https://github.com/kungfuai/flwr_p2p.git
 ```python
 # Create a FL Node that has a strategy and a shared folder.
 from flwr.server.strategy import FedAvg
-from flwr_p2p import AsyncFederatedNode, S3Folder
+from flwr_serverless import AsyncFederatedNode, S3Folder
 
 strategy = FedAvg()
 shared_folder = S3Folder(directory="mybucket/experiment1")
@@ -34,11 +34,18 @@ model.compile(...)
 model.fit(dataset, callbacks=[callback])
 ```
 
-`flwr_p2p` uses `flwr_p2p.SharedFolder` to save states. `flwr_p2p.Folder` is a logical "folder" to hold model checkpoints from FL participants (nodes), as well as model parameters produced by the FL strategy. The logic folder can be backed by a storage backend like S3 or mlflow artifacts (which can in turn be backed by S3).
+`flwr_serverless` uses `flwr_serverless.SharedFolder` to save states. `flwr_serverless.Folder` is a logical "folder" to hold model checkpoints from FL participants (nodes), as well as model parameters produced by the FL strategy. The logic folder can be backed by a storage backend like S3 or mlflow artifacts (which can in turn be backed by S3).
 
 The asynchronous FL node does not wait to sync with other nodes. It takes the latest
 checkpoints from other nodes and performs the aggregation according to the specified strategy.
 
-### Experiment with different strategies
+### Running experiments
 
 To make it easier to experimemt with different strategies, we provide utility classes like `flwr.keras.example.FederatedLearningTestRun`. This allows you to configure the dataset partition, strategy and concurrency. Please use this as an example to develop your own experiments.
+
+To reproduce experiments reported in the paper, you can do
+
+```
+python -m experiments.experiment_scripts.exp1_mnist_async_fedavg
+python -m experiments.experiment_scripts.exp2_cifar10
+```
