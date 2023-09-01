@@ -13,15 +13,15 @@ pip install git+https://github.com/kungfuai/flwr_serverless.git
 
 ```python
 # Create a FL Node that has a strategy and a shared folder.
-from flwr.server.strategy import FedAvg
+from flwr.server.strategy import FedAvg  # This is a flwr federated strategy.
 from flwr_serverless import AsyncFederatedNode, S3Folder
+from flwr_serverless.keras import FlwrFederatedCallback
 
 strategy = FedAvg()
 shared_folder = S3Folder(directory="mybucket/experiment1")
 node = AsyncFederatedNode(strategy=strategy, shared_folder=shared_folder)
 
 # Create a keras Callback with the FL node.
-from flwr.keras import FlwrFederatedCallback
 num_examples_per_epoch = steps_per_epoch * batch_size # number of examples used in each epoch
 callback = FlwrFederatedCallback(
     node,
