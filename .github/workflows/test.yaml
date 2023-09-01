@@ -1,0 +1,31 @@
+name: "test"
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Run in all these versions of Python
+        python-version: [3.9]  # 3.8 did not work
+
+    steps:
+        # Checkout the latest code from the repo
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        # Setup which version of Python to use
+      - name: Set Up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package
+        run: python setup.py install
+      - name: Install pytest and other dev requirements
+        run: |
+          pip install -r requirements_dev.txt
+      - name: Run tests
+        run: pytest tests
