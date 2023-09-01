@@ -3,7 +3,7 @@ A Flower ([flwr](https://flower.dev/)) extension, to enable peer-to-peer federat
 ## Install
 
 ```
-pip install https://github.com/kungfuai/flwr_serverless.git
+pip install git+https://github.com/kungfuai/flwr_serverless.git
 ```
 
 ## Usage for tensorflow
