@@ -6,3 +6,5 @@ __pycache__
 wandb/
 .vscode/
 env.sh
+/build
+/dist

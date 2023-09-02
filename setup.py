@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 with open("requirements.txt") as f:
     install_requires = f.read().splitlines()
@@ -14,7 +14,7 @@ setup(
     author="Kungfu AI",
     author_email="zhangzhang.si@gmail.com",
     license="MIT",
-    packages=["flwr_serverless"],
+    packages=find_packages("."),
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires=">=3.6",

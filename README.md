@@ -1,4 +1,4 @@
-A Flower ([flwr](https://flower.dev/)) extension, to enable peer-to-peer federated learning.
+A Flower ([flwr](https://flower.dev/)) extension for serverless federated learning.
 
 ## Install
 
