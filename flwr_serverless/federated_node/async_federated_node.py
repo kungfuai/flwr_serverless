@@ -11,6 +11,7 @@ from flwr.common import (
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import Strategy
 from flwr_serverless.shared_folder.base_folder import SharedFolder
+from .aggregatable import Aggregatable
 
 
 LOGGER = logging.getLogger(__name__)
@@ -74,8 +75,8 @@ class AsyncFederatedNode:
         self.seen_models = set()
 
     def _aggregate(
-        self, parameters_list: List[Parameters], num_examples_list: List[int] = None
-    ) -> Parameters:
+        self, aggregatables: List[Aggregatable], 
+    ) -> Aggregatable:
 
         # Aggregation using the flwr strategy.
         results: List[Tuple[ClientProxy, FitRes]] = [
@@ -83,69 +84,78 @@ class AsyncFederatedNode:
                 None,
                 FitRes(
                     status=Status(code=Code.OK, message="Success"),
-                    parameters=p,
-                    num_examples=num_examples,
-                    metrics={},
+                    parameters=param_holder.parameters,
+                    num_examples=param_holder.num_examples,
+                    metrics=param_holder.metrics,
                 ),
             )
-            for p, num_examples in zip(parameters_list, num_examples_list)
+            for param_holder in aggregatables
         ]
 
-        aggregated_parameters, _ = self.strategy.aggregate_fit(
+        aggregated_parameters, aggregated_metrics = self.strategy.aggregate_fit(
             server_round=self.counter + 1, results=results, failures=[]
         )
         self.counter += 1
-        return aggregated_parameters
+        return Aggregatable(
+            parameters=aggregated_parameters,
+            num_examples=sum(
+                [param_holder.num_examples for param_holder in aggregatables]
+            ),
+            metrics=aggregated_metrics,
+        )
 
-    def _get_parameters_from_other_nodes(self) -> List[Parameters]:
+    def _get_aggregatables_from_other_nodes(self) -> List[Aggregatable]:
         unseen_parameters_from_other_nodes = []
-        num_examples_from_other_nodes = []
         for key, value in self.model_store.items():
             if key.startswith("accum_num_examples_"):
                 continue
-            if isinstance(value, dict) and "parameters" in value:
+            if isinstance(value, dict) and "model_hash" in value:
                 if key != self.node_id:
                     model_hash = value["model_hash"]
                     if (
                         not self.ignore_seen_models
                     ) or model_hash not in self.seen_models:
                         self.seen_models.add(model_hash)
-                        unseen_parameters_from_other_nodes.append(value["parameters"])
-                        num_examples_from_other_nodes.append(value["num_examples"])
-        return unseen_parameters_from_other_nodes, num_examples_from_other_nodes
+                        unseen_parameters_from_other_nodes.append(value["aggregatable"])
+        return unseen_parameters_from_other_nodes
 
     def update_parameters(
         self,
         local_parameters: Parameters,
         num_examples: int = None,
+        metrics: dict = None,
         epoch: int = None,
-    ) -> Parameters:
+        upload_only=False,
+    ) -> Tuple[Parameters, dict]:
         LOGGER.info(f"node {self.node_id}: in update_parameters")
         assert isinstance(num_examples, int)
         assert num_examples >= 1
+        self_aggregatable = Aggregatable(
+            parameters=local_parameters, num_examples=num_examples, metrics=metrics,
+        )
         self.model_store[self.node_id] = dict(
-            parameters=local_parameters,
-            model_hash=self.node_id + str(time.time()),
-            num_examples=num_examples,
+            aggregatable=self_aggregatable,
+            model_hash=self.node_id + "_" + str(time.time()),
+            epoch=epoch,
         )
+        if upload_only:
+            return local_parameters, metrics
         (
-            parameters_from_other_nodes,
-            num_examples_from_other_nodes,
-        ) = self._get_parameters_from_other_nodes()
+            aggregatables_from_other_nodes
+        ) = self._get_aggregatables_from_other_nodes()
         LOGGER.info(
-            f"node {self.node_id}: {len(parameters_from_other_nodes or [])} parameters_from_other_nodes"
+            f"node {self.node_id}: {len(aggregatables_from_other_nodes or [])} aggregatables_from_other_nodes"
         )
-        if len(parameters_from_other_nodes) == 0:
+        if len(aggregatables_from_other_nodes) == 0:
             # No other nodes, so just return the local parameters
-            return local_parameters
+            return local_parameters, metrics
         else:
             # Aggregate the parameters from other nodes
-            parameters_from_self_and_other_nodes = [
-                local_parameters
-            ] + parameters_from_other_nodes
-            aggregated_parameters = self._aggregate(
-                parameters_from_self_and_other_nodes,
-                num_examples_list=[num_examples] + num_examples_from_other_nodes,
+            parameters_from_all_nodes = [
+                self_aggregatable
+            ] + aggregatables_from_other_nodes
+            updated_aggregatable = self._aggregate(
+                parameters_from_all_nodes
             )
             # It is counter-productive to set self.model_store[node_id] to the aggregated parameters.
             # It makes the accuracy worse.
@@ -154,4 +164,7 @@ class AsyncFederatedNode:
             #     model_hash=self.node_id + str(time.time()),
             #     num_examples=num_examples,
             # )
-            return aggregated_parameters
+            # TODO: fill in aggregated_metrics
+            aggregated_parameters = updated_aggregatable.parameters
+            aggregated_metrics = updated_aggregatable.metrics
+            return aggregated_parameters, aggregated_metrics
