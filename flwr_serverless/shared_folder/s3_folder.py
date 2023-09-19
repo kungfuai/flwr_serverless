@@ -3,7 +3,11 @@ import time
 from typing import Any
 
 
-class S3Folder:
+class S3FolderWithBytes:
+    ...
+
+
+class S3FolderWithPickle:
     def __init__(
         self, directory: str = None, retry_sleep_time: int = 3, max_retry: int = 3
     ):

@@ -27,7 +27,7 @@ class FederatedLearningTestRun:
     test_steps: int = 10
 
     strategy: Strategy = FedAvg()
-    storage_backend: Any = InMemoryFolder()
+    storage_backend: Any = None
     use_async_node: bool = True
     # Whether to train federated models concurrently or sequentially.
     train_concurrently: bool = False
@@ -40,6 +40,8 @@ class FederatedLearningTestRun:
     def __post_init__(self):
         if self.model_builder_fn is None:
             self.model_builder_fn = MnistModelBuilder(lr=self.lr).run
+        if self.storage_backend is None:
+            self.storage_backend = InMemoryFolder()
 
     def run(self):
         (

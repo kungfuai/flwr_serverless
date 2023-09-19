@@ -2,7 +2,7 @@ import boto3
 import pytest
 import numpy as np
 from moto import mock_s3
-from flwr_serverless.shared_folder.s3_folder import S3Folder
+from flwr_serverless.shared_folder.s3_folder import S3FolderWithPickle
 
 
 @mock_s3
@@ -21,7 +21,7 @@ def test_s3_storage_backend():
     conn = boto3.resource("s3", region_name="us-east-1")
     # We need to create the bucket since this is all in Moto's 'virtual' AWS account
     conn.create_bucket(Bucket="mybucket")
-    storage = S3Folder(directory="mybucket/experiment1")
+    storage = S3FolderWithPickle(directory="mybucket/experiment1")
     with pytest.raises(ValueError):
         storage["test"] = None
     storage["model_1"] = [0, 1, 2]

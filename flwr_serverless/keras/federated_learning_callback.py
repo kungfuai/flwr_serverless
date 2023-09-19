@@ -13,6 +13,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         self,
         node: AsyncFederatedNode,
         num_examples_per_epoch: int,
+        override_metrics_with_aggregated_metrics: bool = False,
         x_test=None,
         y_test=None,
         test_batch_size=32,
@@ -26,6 +27,9 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         super().__init__(**kwargs)
         self.node = node
         self.num_examples_per_epoch = num_examples_per_epoch
+        self.override_metrics_with_aggregated_metrics = (
+            override_metrics_with_aggregated_metrics
+        )
         self.x_test = x_test
         self.y_test = y_test
         self.test_batch_size = test_batch_size
@@ -34,11 +38,14 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
     def on_epoch_end(self, epoch: int, logs=None):
         # use the P2PStrategy to update the model.
         params: Parameters = ndarrays_to_parameters(self.model.get_weights())
-        updated_params = self.node.update_parameters(
+        updated_params, updated_metrics = self.node.update_parameters(
             params, num_examples=self.num_examples_per_epoch, epoch=epoch
         )
         if updated_params is not None:
             self.model.set_weights(parameters_to_ndarrays(updated_params))
+            if self.override_metrics_with_aggregated_metrics:
+                if updated_metrics is not None:
+                    logs.update(updated_metrics)
             if self.x_test is not None:
                 print("\n=========================== eval inside callback")
                 self.model.evaluate(

@@ -270,7 +270,7 @@ def test_mnist_training_using_federated_nodes():
         )
         num_examples = batch_size * 10
         param_1: Parameters = ndarrays_to_parameters(model_client1.get_weights())
-        updated_param_1 = node1.update_parameters(param_1, num_examples=num_examples)
+        updated_param_1, _ = node1.update_parameters(param_1, num_examples=num_examples)
         if updated_param_1 is not None:
             model_client1.set_weights(parameters_to_ndarrays(updated_param_1))
         else:
@@ -283,7 +283,7 @@ def test_mnist_training_using_federated_nodes():
         )
         num_examples = batch_size * 10
         param_2: Parameters = ndarrays_to_parameters(model_client2.get_weights())
-        updated_param_2 = node2.update_parameters(param_2, num_examples=num_examples)
+        updated_param_2, _ = node2.update_parameters(param_2, num_examples=num_examples)
         if updated_param_2 is not None:
             model_client2.set_weights(parameters_to_ndarrays(updated_param_2))
         else:
@@ -302,11 +302,25 @@ def test_mnist_training_using_federated_nodes():
 def test_mnist_federated_callback_2nodes():
     epochs = 8
     accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
+        num_nodes=2, epochs=epochs, num_rounds=epochs, lr=0.001, strategy=FedAvg(),
+    ).run()
+    for i in range(len(accuracy_standalone)):
+        assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
+
+    assert accuracy_federated[0] > accuracy_standalone[0]
+    assert accuracy_federated[0] > 1.0 / len(accuracy_standalone) + 0.05
+
+
+def test_mnist_federated_callback_2nodes_synchronously():
+    epochs = 8
+    accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
         num_nodes=2,
         epochs=epochs,
         num_rounds=epochs,
         lr=0.001,
         strategy=FedAvg(),
+        train_concurrently=True,
+        use_async_node=False,
     ).run()
     for i in range(len(accuracy_standalone)):
         assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
@@ -318,11 +332,7 @@ def test_mnist_federated_callback_2nodes():
 def test_mnist_federated_callback_3nodes():
     epochs = 8
     accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
-        num_nodes=3,
-        epochs=epochs,
-        num_rounds=epochs,
-        lr=0.001,
-        strategy=FedAvg(),
+        num_nodes=3, epochs=epochs, num_rounds=epochs, lr=0.001, strategy=FedAvg(),
     ).run()
     for i in range(len(accuracy_standalone)):
         assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
