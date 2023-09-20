@@ -16,3 +16,6 @@ class InMemoryFolder:
 
     def items(self):
         return self.model_store.items()
+
+    def get_raw_folder(self):
+        return self

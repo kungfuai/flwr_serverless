@@ -3,6 +3,10 @@ A Flower ([flwr](https://flower.dev/)) extension for serverless federated learni
 ## Install
 
 ```
+pip install flwr_serverless
+
+or
+
 pip install git+https://github.com/kungfuai/flwr_serverless.git
 ```
 
@@ -26,6 +30,8 @@ num_examples_per_epoch = steps_per_epoch * batch_size # number of examples used 
 callback = FlwrFederatedCallback(
     node,
     num_examples_per_epoch=num_examples_per_epoch,
+    save_model_before_aggregation=False,
+    save_model_after_aggregation=False,
 )
 
 # Join the federated learning, by fitting the model with the federated callback.
@@ -34,16 +40,16 @@ model.compile(...)
 model.fit(dataset, callbacks=[callback])
 ```
 
-`flwr_serverless` uses `flwr_serverless.SharedFolder` to save states. `flwr_serverless.Folder` is a logical "folder" to hold model checkpoints from FL participants (nodes), as well as model parameters produced by the FL strategy. The logic folder can be backed by a storage backend like S3 or mlflow artifacts (which can in turn be backed by S3).
+`flwr_serverless` uses `flwr_serverless.SharedFolder` to save model weights and metrics. The logic folder can be backed by a storage backend like S3.
 
 The asynchronous FL node does not wait to sync with other nodes. It takes the latest
-checkpoints from other nodes and performs the aggregation according to the specified strategy.
+model weights from other nodes and performs the aggregation according to the specified strategy.
 
 ### Running experiments
 
 To make it easier to experimemt with different strategies, we provide utility classes like `flwr.keras.example.FederatedLearningTestRun`. This allows you to configure the dataset partition, strategy and concurrency. Please use this as an example to develop your own experiments.
 
-To reproduce experiments reported in the paper, you can do
+To reproduce some experiments reported in the paper, run
 
 ```
 python -m experiments.experiment_scripts.exp1_mnist_async_fedavg

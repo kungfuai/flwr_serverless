@@ -36,6 +36,8 @@ class FederatedLearningTestRun:
 
     model_builder_fn: Callable = None
     replicate_num_channels: bool = False
+    save_model_before_aggregation: bool = False
+    save_model_after_aggregation: bool = False
 
     def __post_init__(self):
         if self.model_builder_fn is None:
@@ -109,7 +111,8 @@ class FederatedLearningTestRun:
                 ], partitioned_y_train[partition_idx][i : i + batch_size]
 
     def create_federated_models(self):
-        return [self.model_builder_fn() for _ in range(self.num_nodes)]
+        models = [self.model_builder_fn() for _ in range(self.num_nodes)]
+        return models
 
     def train_standalone_models(
         self, model_standalone: List[keras.Model]
@@ -156,6 +159,8 @@ class FederatedLearningTestRun:
                 )
                 for _ in range(self.num_nodes)
             ]
+
+        self.nodes = nodes
         num_partitions = self.num_nodes
         model_federated = [self.model_builder_fn() for _ in range(num_partitions)]
         callbacks_per_client = [
@@ -164,6 +169,7 @@ class FederatedLearningTestRun:
                 x_test=self.x_test,
                 y_test=self.y_test,
                 num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
+                save_model_before_aggregation=self.save_model_before_aggregation,
             )
             for i in range(num_partitions)
         ]
@@ -205,6 +211,7 @@ class FederatedLearningTestRun:
             ]
         else:
             raise NotImplementedError()
+        self.nodes = nodes
         num_partitions = self.num_nodes
         model_federated = [self.model_builder_fn() for _ in range(num_partitions)]
         callbacks_per_client = [
@@ -275,6 +282,7 @@ class FederatedLearningTestRun:
             ]
         else:
             raise NotImplementedError()
+        self.nodes = nodes
         num_partitions = self.num_nodes
         model_federated = [self.model_builder_fn() for _ in range(num_partitions)]
         callbacks_per_client = [
