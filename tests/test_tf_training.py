@@ -1,3 +1,4 @@
+import json
 from typing import List, Tuple, Any
 import numpy as np
 from tensorflow.keras.datasets import mnist
@@ -161,7 +162,6 @@ def test_mnist_training_clients_on_partitioned_data():
 
 
 def test_mnist_training_standalone():
-
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     # x_train.shape: (60000, 28, 28)
     # print(y_train.shape) # (60000,)
@@ -302,7 +302,11 @@ def test_mnist_training_using_federated_nodes():
 def test_mnist_federated_callback_2nodes():
     epochs = 8
     accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
-        num_nodes=2, epochs=epochs, num_rounds=epochs, lr=0.001, strategy=FedAvg(),
+        num_nodes=2,
+        epochs=epochs,
+        num_rounds=epochs,
+        lr=0.001,
+        strategy=FedAvg(),
     ).run()
     for i in range(len(accuracy_standalone)):
         assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
@@ -313,7 +317,7 @@ def test_mnist_federated_callback_2nodes():
 
 def test_mnist_federated_callback_2nodes_synchronously():
     epochs = 8
-    accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
+    session = FederatedLearningTestRun(
         num_nodes=2,
         epochs=epochs,
         num_rounds=epochs,
@@ -321,18 +325,35 @@ def test_mnist_federated_callback_2nodes_synchronously():
         strategy=FedAvg(),
         train_concurrently=True,
         use_async_node=False,
-    ).run()
+        save_model_before_aggregation=True,
+    )
+    accuracy_standalone, accuracy_federated = session.run()
     for i in range(len(accuracy_standalone)):
         assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
 
     assert accuracy_federated[0] > accuracy_standalone[0]
     assert accuracy_federated[0] > 1.0 / len(accuracy_standalone) + 0.05
 
+    # assert metrics files are tracked
+    node_id = session.nodes[0].node_id
+    raw_folder = session.storage_backend.get_raw_folder()
+    json_bytes = raw_folder[f"keras/{node_id}/metrics_before_aggregation_00000.json"]
+    assert json_bytes is not None
+    metrics_dict = json.loads(json_bytes.decode("utf-8"))
+    assert metrics_dict["loss"] > 0.0
+    model_bytes = raw_folder[f"keras/{node_id}/model_before_aggregation_00000.h5"]
+    assert model_bytes is not None
+    assert len(model_bytes) > 0
+
 
 def test_mnist_federated_callback_3nodes():
     epochs = 8
     accuracy_standalone, accuracy_federated = FederatedLearningTestRun(
-        num_nodes=3, epochs=epochs, num_rounds=epochs, lr=0.001, strategy=FedAvg(),
+        num_nodes=3,
+        epochs=epochs,
+        num_rounds=epochs,
+        lr=0.001,
+        strategy=FedAvg(),
     ).run()
     for i in range(len(accuracy_standalone)):
         assert accuracy_standalone[i] < 1.0 / len(accuracy_standalone) + 0.05
