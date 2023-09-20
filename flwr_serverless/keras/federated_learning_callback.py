@@ -20,6 +20,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         y_test=None,
         test_batch_size=32,
         test_steps=10,
+        postfix_for_federated_metrics="_fed",
         override_metrics_with_aggregated_metrics: bool = False,
         save_model_before_aggregation: bool = False,
         save_model_after_aggregation: bool = False,
@@ -33,6 +34,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         )
         self.save_model_before_aggregation = save_model_before_aggregation
         self.save_model_after_aggregation = save_model_after_aggregation
+        self.postfix_for_federated_metrics = postfix_for_federated_metrics
         self.x_test = x_test
         self.y_test = y_test
         self.test_batch_size = test_batch_size
@@ -76,22 +78,35 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         """Return the metrics from the federated aggreation process."""
         return self._federated_metrics
 
-    def on_epoch_end(self, epoch: int, logs=None):
-        # use the P2PStrategy to update the model.
-        node_id = self.node.node_id
-
-        if logs:
+    def _save_metrics_before_aggregation(self, logs, node_id, epoch):
+        if self.save_model_before_aggregation and logs:
             # Save metrics.
             filename = self.metrics_before_aggregation_filename_pattern.format(
                 node_id=node_id, epoch=epoch
             )
             self._save_metrics_to_shared_folder(filename, logs)
 
+    def _save_metrics_after_aggregation(self, logs, node_id, epoch):
+        if self.save_model_after_aggregation and logs:
+            # Save metrics.
+            filename = self.metrics_after_aggregation_filename_pattern.format(
+                node_id=node_id, epoch=epoch
+            )
+            self._save_metrics_to_shared_folder(filename, logs)
+
+    def _save_model_before_aggregation(self, node_id, epoch):
         if self.save_model_before_aggregation:
             filename = self.model_before_aggregation_filename_pattern.format(
                 node_id=node_id, epoch=epoch
             )
             self._save_model_to_shared_folder(filename)
+
+    def on_epoch_end(self, epoch: int, logs=None):
+        # use the P2PStrategy to update the model.
+        node_id = self.node.node_id
+
+        self._save_metrics_before_aggregation(logs, node_id, epoch)
+        self._save_model_before_aggregation(node_id, epoch)
 
         params: Parameters = ndarrays_to_parameters(self.model.get_weights())
         updated_params, updated_metrics = self.node.update_parameters(
@@ -99,13 +114,9 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         )
         self._federated_metrics = updated_metrics
 
-        # save metrics after aggregation
-        if updated_metrics:
-            filename = self.metrics_after_aggregation_filename_pattern.format(
-                node_id=node_id, epoch=epoch
-            )
-            self._save_metrics_to_shared_folder(filename, updated_metrics)
+        self._save_metrics_after_aggregation(updated_metrics, node_id, epoch)
 
+        # Update the keras model and keras logs.
         if updated_params is not None:
             self.model.set_weights(parameters_to_ndarrays(updated_params))
             if self.save_model_before_aggregation:
@@ -114,9 +125,12 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
                     node_id=node_id, epoch=epoch
                 )
                 self._save_model_to_shared_folder(filename)
-            if self.override_metrics_with_aggregated_metrics:
-                if updated_metrics is not None:
+            if updated_metrics is not None:
+                if self.override_metrics_with_aggregated_metrics:
                     logs.update(updated_metrics)
+                else:
+                    for key, value in updated_metrics.items():
+                        logs[f"{key}{self.postfix_for_federated_metrics}"] = value
 
             if self.x_test is not None:
                 print("\n=========================== eval inside callback")
