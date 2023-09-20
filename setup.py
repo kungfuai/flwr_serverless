@@ -8,7 +8,7 @@ with open("README.md") as f:
 
 setup(
     name="flwr_serverless",
-    version="0.2.0",
+    version="0.2.1",
     description="A serverless federated learning library based on flwr",
     url="https://github.com/kungfuai/flwr_serverless",
     author="Kungfu AI",
