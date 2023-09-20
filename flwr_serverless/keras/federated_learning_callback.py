@@ -49,6 +49,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         self.metrics_after_aggregation_filename_pattern = (
             "keras/{node_id}/metrics_after_aggregation_{epoch:05d}.json"
         )
+        self._federated_metrics = {}
 
     def _save_model_to_shared_folder(self, filename: str):
         folder = self.node.model_store.get_raw_folder()
@@ -69,6 +70,11 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         json_str = json.dumps(metrics, indent=2)
         metrics_bytes.write(json_str.encode("utf-8"))
         folder[key] = metrics_bytes.getvalue()
+
+    @property
+    def federated_metrics(self):
+        """Return the metrics from the federated aggreation process."""
+        return self._federated_metrics
 
     def on_epoch_end(self, epoch: int, logs=None):
         # use the P2PStrategy to update the model.
@@ -91,6 +97,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         updated_params, updated_metrics = self.node.update_parameters(
             params, num_examples=self.num_examples_per_epoch, epoch=epoch
         )
+        self._federated_metrics = updated_metrics
 
         # save metrics after aggregation
         if updated_metrics:
