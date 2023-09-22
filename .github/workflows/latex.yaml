@@ -1,0 +1,23 @@
+name: Build LaTeX document
+on:
+  push:
+    branches:
+      - latex
+jobs:
+  build_latex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@v3
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v3
+        with:
+          working_directory: doc/paper
+          root_file: main.tex
+          continue_on_error: true
+          texlive_version: 2022
+      - name: Upload PDF file
+        uses: actions/upload-artifact@v3
+        with:
+          name: PDF
+          path: doc/paper/main.pdf
