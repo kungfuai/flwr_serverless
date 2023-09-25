@@ -6,9 +6,13 @@ with open("requirements.txt") as f:
 with open("README.md") as f:
     long_description = f.read()
 
+with open("flwr_serverless/version.py") as f:
+    version_text = f.read()
+    __version__ = version_text.split('"')[1]
+
 setup(
     name="flwr_serverless",
-    version="0.2.2",
+    version=__version__,
     description="A serverless federated learning library based on flwr",
     url="https://github.com/kungfuai/flwr_serverless",
     author="Kungfu AI",

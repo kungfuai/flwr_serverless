@@ -1,6 +1,7 @@
 import os
 from io import BytesIO
 import json
+import logging
 from tensorflow import keras
 from flwr_serverless.federated_node.async_federated_node import AsyncFederatedNode
 from flwr.common import (
@@ -9,6 +10,9 @@ from flwr.common import (
     ndarrays_to_parameters,
     parameters_to_ndarrays,
 )
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class FlwrFederatedCallback(keras.callbacks.Callback):
@@ -128,9 +132,12 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
             if updated_metrics is not None:
                 if self.override_metrics_with_aggregated_metrics:
                     logs.update(updated_metrics)
+                    LOGGER.info("[flwr_serverless] Metrics in Keras logs object are overriden.")
                 else:
                     for key, value in updated_metrics.items():
                         logs[f"{key}{self.postfix_for_federated_metrics}"] = value
+                    msg = f"[flwr_serverless] Federated metrics are added to Keras logs object with postfix {self.postfix_for_federated_metrics}."
+                    LOGGER.info(msg)
 
             if self.x_test is not None:
                 print("\n=========================== eval inside callback")
