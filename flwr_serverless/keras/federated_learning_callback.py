@@ -108,13 +108,28 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
     def on_epoch_end(self, epoch: int, logs=None):
         # use the P2PStrategy to update the model.
         node_id = self.node.node_id
+        LOGGER.info(f"[flwr_serverless] on_epoch_end, logs={logs}")
 
         self._save_metrics_before_aggregation(logs, node_id, epoch)
         self._save_model_before_aggregation(node_id, epoch)
+        assert "val_accuracy" in logs, f"keys={logs.keys()}"
 
         params: Parameters = ndarrays_to_parameters(self.model.get_weights())
+        if self.override_metrics_with_aggregated_metrics:
+            metrics = logs
+        else:
+            metrics = {
+                k: v
+                for k, v in logs.items()
+                if not k.endswith(self.postfix_for_federated_metrics)
+            }
+        assert "val_accuracy" in metrics, f"keys={metrics.keys()}"
+
         updated_params, updated_metrics = self.node.update_parameters(
-            params, num_examples=self.num_examples_per_epoch, epoch=epoch
+            params,
+            num_examples=self.num_examples_per_epoch,
+            epoch=epoch,
+            metrics=metrics,
         )
         self._federated_metrics = updated_metrics
 
@@ -132,7 +147,9 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
             if updated_metrics is not None:
                 if self.override_metrics_with_aggregated_metrics:
                     logs.update(updated_metrics)
-                    LOGGER.info("[flwr_serverless] Metrics in Keras logs object are overriden.")
+                    LOGGER.info(
+                        "[flwr_serverless] Metrics in Keras logs object are overriden."
+                    )
                 else:
                     for key, value in updated_metrics.items():
                         logs[f"{key}{self.postfix_for_federated_metrics}"] = value
@@ -151,3 +168,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
                 print("Done evaluating inside callback =====================\n")
         else:
             print("waiting for other nodes to send their parameters")
+
+        # Keep track of keras logs
+        assert "val_accuracy_fed" in logs, f"keys={logs.keys()}"
+        self.logs = logs

@@ -44,6 +44,7 @@ class FederatedLearningTestRun:
             self.model_builder_fn = MnistModelBuilder(lr=self.lr).run
         if self.storage_backend is None:
             self.storage_backend = InMemoryFolder()
+        self.histories = {}
 
     def run(self):
         (
@@ -112,6 +113,7 @@ class FederatedLearningTestRun:
 
     def create_federated_models(self):
         models = [self.model_builder_fn() for _ in range(self.num_nodes)]
+        self.models = models
         return models
 
     def train_standalone_models(
@@ -119,7 +121,7 @@ class FederatedLearningTestRun:
     ) -> List[keras.Model]:
         for i_node in range(self.num_nodes):
             train_loader_standalone = self.get_train_dataloader_for_node(i_node)
-            model_standalone[i_node].fit(
+            self.histories[i_node] = model_standalone[i_node].fit(
                 train_loader_standalone,
                 epochs=self.epochs,
                 steps_per_epoch=self.steps_per_epoch,
@@ -173,6 +175,7 @@ class FederatedLearningTestRun:
             )
             for i in range(num_partitions)
         ]
+        self.callbacks_per_client = callbacks_per_client
 
         train_loaders = [
             self.get_train_dataloader_for_node(i) for i in range(num_partitions)
@@ -188,7 +191,10 @@ class FederatedLearningTestRun:
                     epochs=self.num_rounds,
                     steps_per_epoch=self.steps_per_epoch,
                     callbacks=[callbacks_per_client[i_node]],
-                    validation_data=(self.x_test, self.y_test),
+                    validation_data=(
+                        self.x_test[: self.test_steps * self.batch_size, ...],
+                        self.y_test[: self.test_steps * self.batch_size, ...],
+                    ),
                     validation_steps=self.test_steps,
                     validation_batch_size=self.batch_size,
                 )
@@ -223,6 +229,7 @@ class FederatedLearningTestRun:
             )
             for i in range(num_partitions)
         ]
+        self.callbacks_per_client = callbacks_per_client
 
         num_federated_rounds = self.num_rounds
         num_epochs_per_round = 1
@@ -245,7 +252,7 @@ class FederatedLearningTestRun:
         print(f"Execution sequence: {execution_sequence}")
         for i_node in execution_sequence:
             print("Training node", i_node)
-            model_federated[i_node].fit(
+            self.histories[i_node] = model_federated[i_node].fit(
                 x=train_loaders[i_node],
                 epochs=num_epochs_per_round,
                 steps_per_epoch=self.steps_per_epoch,
@@ -291,6 +298,7 @@ class FederatedLearningTestRun:
             )
             for i in range(num_partitions)
         ]
+        self.callbacks_per_client = callbacks_per_client
 
         num_federated_rounds = self.num_rounds
         num_epochs_per_round = 1
@@ -301,8 +309,13 @@ class FederatedLearningTestRun:
         for i_round in range(num_federated_rounds):
             print("\n============ Round", i_round)
             for i_partition in range(num_partitions):
-                model_federated[i_partition].fit(
+                self.histories[i_partition] = model_federated[i_partition].fit(
                     train_loaders[i_partition],
+                    validation_data=(
+                        self.x_test[: self.test_steps * self.batch_size, ...],
+                        self.y_test[: self.test_steps * self.batch_size, ...],
+                    ),
+                    validation_steps=self.test_steps,
                     epochs=num_epochs_per_round,
                     steps_per_epoch=self.steps_per_epoch,
                     callbacks=callbacks_per_client[i_partition],

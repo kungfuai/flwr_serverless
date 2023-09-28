@@ -345,6 +345,11 @@ def test_mnist_federated_callback_2nodes_synchronously():
     assert model_bytes is not None
     assert len(model_bytes) > 0
 
+    # assert the keras logs object has "*_fed" metrics
+    first_callback = session.callbacks_per_client[0]
+    assert "accuracy_fed" in first_callback.logs, f"{first_callback.logs}"
+    assert "val_accuracy_fed" in first_callback.logs, f"{first_callback.logs}"
+
 
 def test_mnist_federated_callback_3nodes():
     epochs = 8

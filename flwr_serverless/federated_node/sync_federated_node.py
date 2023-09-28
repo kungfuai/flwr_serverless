@@ -18,6 +18,8 @@ LOGGER = logging.getLogger(__name__)
 class SyncFederatedNode:
     """
     Synchronous federated learning.
+
+    TODO: allow user to specify the metric names to include and exclude.
     """
 
     def __init__(self, shared_folder, strategy, num_nodes: int):
@@ -46,6 +48,10 @@ class SyncFederatedNode:
         aggregated_parameters, aggregated_metrics = self.strategy.aggregate_fit(
             server_round=self.counter + 1, results=results, failures=[]
         )
+        aggregated_metrics = self._update_aggregated_metrics_in_case_flwr_did_not_do_it(
+            aggregatables, aggregated_metrics
+        )
+
         self.counter += 1
         return Aggregatable(
             parameters=aggregated_parameters,
@@ -54,6 +60,31 @@ class SyncFederatedNode:
             ),
             metrics=aggregated_metrics,
         )
+
+    def _update_aggregated_metrics_in_case_flwr_did_not_do_it(
+        self, aggregatables, aggregated_metrics: dict
+    ) -> dict:
+        if len(aggregated_metrics) == 0:
+            aggregated_metrics = {}
+            aggregated_metrics["num_examples"] = sum(
+                [param_holder.num_examples for param_holder in aggregatables]
+            )
+            aggregated_metrics["num_nodes"] = len(aggregatables)
+            first_metric = aggregatables[0].metrics
+            for k, _ in first_metric.items():
+                if k in ["num_nodes", "num_examples"]:
+                    continue
+                aggregated_metrics[k] = (
+                    sum(
+                        [
+                            param_holder.metrics[k] * param_holder.num_examples
+                            for param_holder in aggregatables
+                        ]
+                    )
+                    / aggregated_metrics["num_examples"]
+                )
+        LOGGER.info(f"Aggregated metrics: {aggregated_metrics}")
+        return aggregated_metrics
 
     def _get_parameters_from_other_nodes(self, epoch: int) -> List[Aggregatable]:
         other_parameters_from_epoch = []
@@ -86,7 +117,9 @@ class SyncFederatedNode:
     ) -> Tuple[Parameters, dict]:
         model_hash = self.node_id + "_" + str(time.time())
         self_aggregatable = Aggregatable(
-            parameters=local_parameters, num_examples=num_examples, metrics=metrics,
+            parameters=local_parameters,
+            num_examples=num_examples,
+            metrics=metrics,
         )
         self.model_store[model_hash] = dict(
             aggregatable=self_aggregatable,
@@ -112,7 +145,7 @@ class SyncFederatedNode:
             LOGGER.info(
                 f"Waiting for {self.num_nodes - 1 - len(aggregatables_from_other_nodes)} more."
             )
-            wait_seconds = min(60 * 2 ** wait_counter, max_retry)
+            wait_seconds = min(60 * 2**wait_counter, max_retry)
             LOGGER.info(f"Waiting {wait_seconds} seconds..")
             time.sleep(wait_seconds)
             wait_counter += 1

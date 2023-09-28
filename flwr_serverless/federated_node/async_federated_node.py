@@ -57,7 +57,8 @@ class AsyncFederatedNode:
 
     References:
     - [Semi-Synchronous Federated Learning for Energy-Efficient
-    Training and Accelerated Convergence in Cross-Silo Settings](https://arxiv.org/pdf/2102.02849.pdf)"""
+    Training and Accelerated Convergence in Cross-Silo Settings](https://arxiv.org/pdf/2102.02849.pdf)
+    """
 
     def __init__(
         self,
@@ -75,9 +76,9 @@ class AsyncFederatedNode:
         self.seen_models = set()
 
     def _aggregate(
-        self, aggregatables: List[Aggregatable], 
+        self,
+        aggregatables: List[Aggregatable],
     ) -> Aggregatable:
-
         # Aggregation using the flwr strategy.
         results: List[Tuple[ClientProxy, FitRes]] = [
             (
@@ -95,6 +96,10 @@ class AsyncFederatedNode:
         aggregated_parameters, aggregated_metrics = self.strategy.aggregate_fit(
             server_round=self.counter + 1, results=results, failures=[]
         )
+        aggregated_metrics = self._update_aggregated_metrics_in_case_flwr_did_not_do_it(
+            aggregatables, aggregated_metrics
+        )
+
         self.counter += 1
         return Aggregatable(
             parameters=aggregated_parameters,
@@ -103,6 +108,34 @@ class AsyncFederatedNode:
             ),
             metrics=aggregated_metrics,
         )
+
+    def _update_aggregated_metrics_in_case_flwr_did_not_do_it(
+        self, aggregatables, aggregated_metrics: dict
+    ) -> dict:
+        if len(aggregated_metrics) == 0:
+            aggregated_metrics = {}
+            aggregated_metrics["num_examples"] = sum(
+                [param_holder.num_examples for param_holder in aggregatables]
+            )
+            aggregated_metrics["num_nodes"] = len(aggregatables)
+            first_metric = aggregatables[0].metrics
+            if first_metric is None:
+                LOGGER.warning(f"No metrics found in {aggregatables[0]}")
+                return aggregated_metrics
+            for k, _ in first_metric.items():
+                if k in ["num_nodes", "num_examples"]:
+                    continue
+                aggregated_metrics[k] = (
+                    sum(
+                        [
+                            param_holder.metrics[k] * param_holder.num_examples
+                            for param_holder in aggregatables
+                        ]
+                    )
+                    / aggregated_metrics["num_examples"]
+                )
+        LOGGER.info(f"Aggregated metrics: {aggregated_metrics}")
+        return aggregated_metrics
 
     def _get_aggregatables_from_other_nodes(self) -> List[Aggregatable]:
         unseen_parameters_from_other_nodes = []
@@ -131,7 +164,9 @@ class AsyncFederatedNode:
         assert isinstance(num_examples, int)
         assert num_examples >= 1
         self_aggregatable = Aggregatable(
-            parameters=local_parameters, num_examples=num_examples, metrics=metrics,
+            parameters=local_parameters,
+            num_examples=num_examples,
+            metrics=metrics,
         )
         self.model_store[self.node_id] = dict(
             aggregatable=self_aggregatable,
@@ -140,9 +175,7 @@ class AsyncFederatedNode:
         )
         if upload_only:
             return local_parameters, metrics
-        (
-            aggregatables_from_other_nodes
-        ) = self._get_aggregatables_from_other_nodes()
+        (aggregatables_from_other_nodes) = self._get_aggregatables_from_other_nodes()
         LOGGER.info(
             f"node {self.node_id}: {len(aggregatables_from_other_nodes or [])} aggregatables_from_other_nodes"
         )
@@ -154,9 +187,7 @@ class AsyncFederatedNode:
             parameters_from_all_nodes = [
                 self_aggregatable
             ] + aggregatables_from_other_nodes
-            updated_aggregatable = self._aggregate(
-                parameters_from_all_nodes
-            )
+            updated_aggregatable = self._aggregate(parameters_from_all_nodes)
             # It is counter-productive to set self.model_store[node_id] to the aggregated parameters.
             # It makes the accuracy worse.
             # self.model_store[self.node_id] = dict(
