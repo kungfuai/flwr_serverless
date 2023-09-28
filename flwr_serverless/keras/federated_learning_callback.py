@@ -112,7 +112,6 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
 
         self._save_metrics_before_aggregation(logs, node_id, epoch)
         self._save_model_before_aggregation(node_id, epoch)
-        assert "val_accuracy" in logs, f"keys={logs.keys()}"
 
         params: Parameters = ndarrays_to_parameters(self.model.get_weights())
         if self.override_metrics_with_aggregated_metrics:
@@ -123,7 +122,6 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
                 for k, v in logs.items()
                 if not k.endswith(self.postfix_for_federated_metrics)
             }
-        assert "val_accuracy" in metrics, f"keys={metrics.keys()}"
 
         updated_params, updated_metrics = self.node.update_parameters(
             params,
@@ -170,5 +168,9 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
             print("waiting for other nodes to send their parameters")
 
         # Keep track of keras logs
-        assert "val_accuracy_fed" in logs, f"keys={logs.keys()}"
         self.logs = logs
+        if not self.override_metrics_with_aggregated_metrics:
+            assert any(
+                key.endswith(self.postfix_for_federated_metrics)
+                for key in self.logs.keys()
+            ), f"No federated metrics found in Keras logs object. {logs}"
