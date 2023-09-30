@@ -172,6 +172,7 @@ class AsyncFederatedNode:
             aggregatable=self_aggregatable,
             model_hash=self.node_id + "_" + str(time.time()),
             epoch=epoch,
+            node_id=self.node_id,
         )
         if upload_only:
             return local_parameters, metrics

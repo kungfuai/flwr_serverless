@@ -5,7 +5,11 @@ from typing import Any
 
 class S3FolderWithBytes:
     def __init__(
-        self, directory: str = None, retry_sleep_time: int = 3, max_retry: int = 3
+        self,
+        directory: str = None,
+        retry_sleep_time: int = 3,
+        max_retry: int = 3,
+        check_at_init: bool = True,
     ):
         import boto3
 
@@ -22,6 +26,15 @@ class S3FolderWithBytes:
         self.retry_sleep_time = retry_sleep_time
         self.max_retry = max_retry
         self.s3 = boto3.client("s3")
+        if check_at_init:
+            self._check()
+
+    def _check(self):
+        # read and write a dummy file
+        key = "dummy"
+        self[key] = b"dummy"
+        assert self[key] == b"dummy"
+        del self[key]
 
     def _exists(self, key: str):
         results = self.s3.list_objects_v2(Bucket=self.bucket, Prefix=key)
@@ -42,7 +55,7 @@ class S3FolderWithBytes:
             filepath = self.prefix + "/" + key
         if self._exists(filepath):
             obj = self.s3.get_object(Bucket=self.bucket, Key=filepath)
-            return pickle.loads(obj["Body"].read())
+            return obj["Body"].read()
         else:
             return default
 
@@ -60,6 +73,13 @@ class S3FolderWithBytes:
         assert isinstance(value, bytes), f"value must be bytes, but got {type(value)}"
         self.s3.put_object(Bucket=self.bucket, Key=filepath, Body=value)
         self._put_success_flag(key)
+
+    def __delitem__(self, key):
+        if self.prefix is None:
+            filepath = key
+        else:
+            filepath = self.prefix + "/" + key
+        self.s3.delete_object(Bucket=self.bucket, Key=filepath)
 
     def _get_success_flag_file(self, key):
         if self.prefix is None:
@@ -96,7 +116,11 @@ class S3FolderWithBytes:
 
 class S3FolderWithPickle:
     def __init__(
-        self, directory: str = None, retry_sleep_time: int = 3, max_retry: int = 3
+        self,
+        directory: str = None,
+        retry_sleep_time: int = 3,
+        max_retry: int = 3,
+        check_at_init: bool = True,
     ):
         import boto3
 
@@ -114,6 +138,16 @@ class S3FolderWithPickle:
         self.retry_sleep_time = retry_sleep_time
         self.max_retry = max_retry
         self.s3 = boto3.client("s3")
+
+        if check_at_init:
+            self._check()
+
+    def _check(self):
+        # read and write a dummy file
+        key = "dummy"
+        self[key] = "dummy"
+        assert self[key] == "dummy"
+        del self[key]
 
     def _exists(self, key: str):
         results = self.s3.list_objects_v2(Bucket=self.bucket, Prefix=key)
@@ -163,6 +197,13 @@ class S3FolderWithPickle:
         self._delete_success_flag(key)
         self.s3.put_object(Bucket=self.bucket, Key=filepath, Body=pickle.dumps(value))
         self._put_success_flag(key)
+
+    def __delitem__(self, key):
+        if self.prefix is None:
+            filepath = key + self.suffix
+        else:
+            filepath = self.prefix + "/" + (key + self.suffix)
+        self.s3.delete_object(Bucket=self.bucket, Key=filepath)
 
     def _get_success_flag_file(self, key):
         if self.prefix is None:

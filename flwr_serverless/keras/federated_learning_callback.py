@@ -2,8 +2,10 @@ import os
 from io import BytesIO
 import json
 import logging
+from typing import Union
 from tensorflow import keras
 from flwr_serverless.federated_node.async_federated_node import AsyncFederatedNode
+from flwr_serverless.federated_node.sync_federated_node import SyncFederatedNode
 from flwr.common import (
     NDArrays,
     Parameters,
@@ -18,7 +20,7 @@ LOGGER = logging.getLogger(__name__)
 class FlwrFederatedCallback(keras.callbacks.Callback):
     def __init__(
         self,
-        node: AsyncFederatedNode,
+        node: Union[AsyncFederatedNode, SyncFederatedNode],
         num_examples_per_epoch: int,
         x_test=None,
         y_test=None,
@@ -73,7 +75,13 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         folder = self.node.model_store.get_raw_folder()
         key = filename
         metrics_bytes = BytesIO()
-        json_str = json.dumps(metrics, indent=2)
+        simple_metrics = {}
+        for k, v in metrics.items():
+            try:
+                simple_metrics[k] = float(v)
+            except:
+                pass
+        json_str = json.dumps(simple_metrics, indent=2)
         metrics_bytes.write(json_str.encode("utf-8"))
         folder[key] = metrics_bytes.getvalue()
 
@@ -83,7 +91,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         return self._federated_metrics
 
     def _save_metrics_before_aggregation(self, logs, node_id, epoch):
-        if self.save_model_before_aggregation and logs:
+        if logs:
             # Save metrics.
             filename = self.metrics_before_aggregation_filename_pattern.format(
                 node_id=node_id, epoch=epoch
@@ -91,7 +99,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
             self._save_metrics_to_shared_folder(filename, logs)
 
     def _save_metrics_after_aggregation(self, logs, node_id, epoch):
-        if self.save_model_after_aggregation and logs:
+        if logs:
             # Save metrics.
             filename = self.metrics_after_aggregation_filename_pattern.format(
                 node_id=node_id, epoch=epoch
