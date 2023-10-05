@@ -332,83 +332,25 @@ We designed a series of experiments to study the effect of several factors on th
 - the number of federated nodes
 - the disparity between the federated datasets on different nodes.
 
-The experiments are performed in several datasets and machine learning tasks: MNIST digital classification, CIFAR-10 image classification, an NLP NER benchmark, and a LLM instruction fine-tuning task.
+The experiments are performed in several datasets and machine learning tasks: MNIST digital classification, CIFAR-10 image classification, and a language model training task.
 
 \subsection{Experiments on MNIST}
 
+We run two experiments on the MNIST dataset. The first compares synchronous vs asynchronous learning on different data distributions. The second experiment compares different federated learning strategies on different numbers of nodes (2, 3, and 5). 
+
+The model architecture for all MNIST experiments is kept the same. It consists of a convolutional layer followed by a max pooling layer and  another convolutional layer. Both convolutional layers use a ReLU activation function. We use a batch size of 32 and run 64 steps per epoch.
 
 
-% $m \gets \max(C \cdot K, 1)$\;
-% $S_t \gets (\text{random set of } m \text{ clients})$\;
+\subsubsection{Synchronous vs Asynchronous}
 
-% More detail on the design. For example, model hashing to keep track of state.
-% Algorithm description
-% Figure showing use and interaction with the Flower standard architecture and ddesign
-% Figure showing detailed view of the aysnchronous implementation
+Here are our findings about the effect of synchronous vs. asynchronous strategies:
 
-% \paragraph{Paragraph}
-% \lipsum[7]
+- Accuracy stays roughly the same.
+- Asynchronous can be 2~3 times faster than synchronous (for 2 federated nodes).
+- Partition skewness has a large impact on the accuracy of the federated model. Heavy skew causes 15\% of accuracy drop. And asynchronous suffers slightly higher drop.
 
-% \section{Examples of citations, figures, tables, references}
+Table 4.1.1 shows the validation accuracy at 10, 100, and 500 epochs as well as the seconds per epoch for six different configurations. Three different data distributions were tested: random, skewed, and partitioned. Random is a simple random split of the data across the 2 nodes. For the partitioned split, each node gets a subset of the labels, digits 0-4 for node 1 and digits 5-9 for node 2 in this case. The “skewed split” attempts to model a more realistic skewed data, where the training data for each node consists of the same labels, but in different distributions. For a skewed split of MNIST, 95\% of each node’s training data is of the same 5 labels, while the remaining 5\% is for the other 5 labels.
 
-% The documentation for \verb+natbib+ may be found at
-% \begin{center}
-%   \url{http://mirrors.ctan.org/macros/latex/contrib/natbib/natnotes.pdf}
-% \end{center}
-% Of note is the command \verb+\citet+, which produces citations
-% appropriate for use in inline text.  For example,
-% \begin{verbatim}
-%    \citet{hasselmo} investigated\dots
-% \end{verbatim}
-% produces
-% \begin{quote}
-%   Hasselmo, et al.\ (1995) investigated\dots
-% \end{quote}
-
-% \begin{center}
-%   \url{https://www.ctan.org/pkg/booktabs}
-% \end{center}
-
-
-% \subsection{Figures}
-% \lipsum[10] 
-% See Figure \ref{fig:fig1}. Here is how you add footnotes. %\footnote{Sample of the first footnote.}
-% \lipsum[11] 
-
-% \begin{figure}[H]
-%   \centering
-%   \fbox{\rule[-.5cm]{4cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
-%   \caption{Sample figure caption.}
-%   \label{fig:fig1}
-% \end{figure}
-
-% \subsection{Tables}
-% \lipsum[12]
-% See awesome Table \ref{tab:table}.
-
-% \begin{table}[H]
-%  \caption{Sample table title}
-%   \centering
-%   \begin{tabular}{lll}
-%     \toprule
-%     \multicolumn{2}{c}{Part}                   \\
-%     \cmidrule(r){1-2}
-%     Name     & Description     & Size ($\mu$m) \\
-%     \midrule
-%     Dendrite & Input terminal  & $\sim$100     \\
-%     Axon     & Output terminal & $\sim$10      \\
-%     Soma     & Cell body       & up to $10^6$  \\
-%     \bottomrule
-%   \end{tabular}
-%   \label{tab:table}
-% \end{table}
-
-% \subsection{Lists}
-% \begin{itemize}
-% \item Lorem ipsum dolor sit amet
-% \item consectetur adipiscing elit. 
-% \item Aliquam dignissim blandit est, in dictum tortor gravida eget. In ac rutrum magna.
-% \end{itemize}
 
 %%%%%%%%%%%% Supplementary Methods %%%%%%%%%%%%
 %\footnotesize
