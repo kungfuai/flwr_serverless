@@ -106,7 +106,7 @@
 \newcommand{\orcidauthorD}{0000-0000-0000-0004}
 
 %%%%%%%%%%%%%%%%   Title   %%%%%%%%%%%%%%%%
-\title{Flwr P2P: Serverless Federated Learning}
+\title{Serverless Federated Learning with flwr-serverless}
 
 % Add watermark with submission status
 \usepackage{xwatermark}
@@ -115,15 +115,16 @@
 % Right watermark
 \newwatermark[firstpage,color=gray!60,angle=90,scale=0.32, xpos=3.9in,ypos=0]{\href{https://doi.org/}{\color{gray}{Preprint doi}}}
 % Bottom watermark
-\newwatermark[firstpage,color=gray!90,angle=0,scale=0.28, xpos=0in,ypos=-5in]{*Equal contribution. Correspondence: \texttt{zz@kungfu.ai}}
+\newwatermark[firstpage,color=gray!90,angle=0,scale=0.28, xpos=0in,ypos=-5in]{Correspondence: \texttt{zz@kungfu.ai}}
 
 %%%%%%%%%%%%%%%  Author list  %%%%%%%%%%%%%%%
 \usepackage{authblk}
 \renewcommand*{\Authfont}{\bfseries}
-\author[1\thanks{\tt{}}]{Sanjeev V. Namjoshi}
-\author[2]{Zhangzhang Si}
+\author[1]{Sanjeev V. Namjoshi}
+\author[2]{Reese Green}
+\author[3]{Zhangzhang Si}
 
-\affil[1,2]{KUNGFU.AI}
+\affil[1,2,3]{KUNGFU.AI}
 % \affil[2]{KUNGFU.AI}
 
 % Option 2 for author list
@@ -154,7 +155,7 @@
 \maketitle
 
 \begin{abstract}
-Federated learning is becoming increasingly relevant and popular as we witness a surge in data collection and storage of personally identifiable information. Alongside these developments there have been many proposals from governments around the world to provide more protections for individuals' data and a heightened interest in data privacy measures. As deep learning continuous to be come more relevant in new and existing domains, it is vital to develop strategies like federated that can effectively train data from different sources, such as edge devices, without compromising security and privacy. Recently, the Flower (\texttt{Flwr}) Python package was introduced to provide a scalable, flexible, and easy-to-use approach to implementing federated learning. However, to date Flower is only able to run synchronous federated learning which can be costly and time-consuming to run because the process is bottlenecked by models that are slow to train. Here we introduce \texttt{FlwrP2P}, a wrapper around the Flower package that extends its functionality to allow for asynchronous federated learning with minimal modification to its design paradigm. Furthermore, our approach to asynchronous federated learning effectively allows the process to run in a "serverless" mode which should increase the domains of application and accessibility of its use. Here present the design details, usage, and a series of experiments to demonstrate the applicability of our approach on standard benchmark federated learning datasets. Overall, we believe that our approach will decrease federated training time/cost as well as provide an easier way to implement and experiment with federated learning systems.
+Federated learning is becoming increasingly relevant and popular as we witness a surge in data collection and storage of personally identifiable information. Alongside these developments there have been many proposals from governments around the world to provide more protections for individuals' data and a heightened interest in data privacy measures. As deep learning continuous to be come more relevant in new and existing domains, it is vital to develop strategies like federated that can effectively train data from different sources, such as edge devices, without compromising security and privacy. Recently, the Flower (\texttt{Flwr}) Python package was introduced to provide a scalable, flexible, and easy-to-use approach to implementing federated learning. However, to date Flower is only able to run synchronous federated learning which can be costly and time-consuming to run because the process is bottlenecked by models that are slow to train. Here we introduce \texttt{flwr-serverless}, a wrapper around the Flower package that extends its functionality to allow for asynchronous federated learning with minimal modification to its design paradigm. Furthermore, our approach to asynchronous federated learning effectively allows the process to run in a "serverless" mode which should increase the domains of application and accessibility of its use. Here present the design details, usage, and a series of experiments to demonstrate the applicability of our approach on standard benchmark federated learning datasets. Overall, we believe that our approach will decrease federated training time/cost as well as provide an easier way to implement and experiment with federated learning systems.
 \end{abstract}
 %\keywords{First keyword \and Second keyword \and More} % (optional)
 \vspace{0.35cm}
@@ -172,7 +173,7 @@ Federated learning is becoming increasingly relevant and popular as we witness a
 
 Over the last few years, the decreased cost of data storage and increased usage of apps and digital technologies have led to an unprecedented surge in data collection and availability. This data collection revolution has proceeded alongside numerous advances in deep learning which has provided a usage for this data for a large variety of applications. The output predictions from these statistical models has become increasingly sophisticated and continues to have a direct impact on both society and the global economy. Notably, much of this data contains personal information, often collected directly from individuals and inferred from their behavioral patterns, or directly recorded in the form of digital healthcare data.
 
-The widespread usage of this data in deep learning technologies has induced a greater interest and concern for data protection and privacy and a call for the codification of such protections under a legal framework. Recently, the European Union has enacted the General Data Protection Regulation (GDPR) \cite{gdpr, gpdr_url} which specifies the legality of personal data collection and usage as well as establishes the control of personal data as a human right. In the healthcare domain, collected medical data that contains sensitive information, electronic health records, is protected under the Health Insurance Portability and Accountability Act (HIPPA) (ref) in the United States which restricts and prohibits disclosure of this information to third parties without patient consent. 
+The widespread usage of this data in deep learning technologies has induced a greater interest and concern for data protection and privacy and a call for the codification of such protections under a legal framework. Recently, the European Union has enacted the General Data Protection Regulation (GDPR) \cite{gdpr, gpdr_url} which specifies the legality of personal data collection and usage as well as establishes the control of personal data as a human right. In the healthcare domain, collected medical data that contains sensitive information, electronic health records, is protected under the Health Insurance Portability and Accountability Act (HIPPA) in the United States which restricts and prohibits disclosure of this information to third parties without patient consent. 
 
 Deep learning model training tasks generally require the aggregation of disparate data sources into one centralized location so it is fully accessible by the model. For example, one may wish to train a model using edge-devices belonging to individual users which would necessitate combining this data together in one location. In the healthcare domain, medical images and patient clinical data, which may exist in different data centers, may need to be pooled to successfully train models representative of the general population. 
 
@@ -187,7 +188,7 @@ The open-source Flower Python package \cite{flower} was recently introduced to p
     \label{fig:syncasync}
 \end{figure*}
 
-To address this issue, we introduce \texttt{Flwr P2P} a wrapper around the Flower framework that extends its capabilities to allow for both synchronous and asynchronous forms of Federated Learning without altering its core use pattern. Furthermore, the changes we make effectively allow Flower to be run "serverless" in the sense that weight aggregation occurs on the client side asynchronously, updating from any accessible remote weight storage directory. Thus, our approach inherits all of the functionality and convenience of Flower while also adding a new feature. Herein, we describe the architectural changes made to the federated learning workflow and the Flower package along with the asynchronous learning strategy that we employ. Finally, we demonstrate the results on some federated benchmark datasets. Our results show that asynchronous federated learning is robust and in specific situations can significantly speed up the federated training without sacrificing model performance.  
+To address this issue, we introduce \texttt{flwr-serverless}, a wrapper around the flwr framework that extends its capabilities to allow for both synchronous and asynchronous forms of Federated Learning without altering its core use pattern. Furthermore, the changes we make effectively allow Flower to be run "serverless" in the sense that weight aggregation occurs on the client side, updating from any accessible remote weight storage directory. Thus, our approach inherits all of the functionality and convenience of Flower while also adding a new feature. Herein, we describe the architectural changes made to the federated learning workflow and the Flower package along with the asynchronous learning strategy that we employ. Finally, we demonstrate the results on some federated benchmark datasets. Our results show that asynchronous federated learning is robust and in specific situations can significantly speed up the federated training without sacrificing model performance.  
 
 \section{Federated Learning}
 % \label{sec:federated-learning}
@@ -214,11 +215,11 @@ In most cases, federated learning is performed in synchronous fashion (Figure 1,
 
 In order to address these concerns, an alternative approach is \textit{asynchronous} federated training (Figure 1, right panel).  A number of asynchronous federated learning strategies have been developed and implemented. The original FedAsync \cite{fedasync} strategy utilizes a mixing hyperparameter to control a client's contribution to the global aggregation based on its "staleness" (how slow the client is to complete its local training rounds). Other approaches have also used a similar staleness model including ASO-Fed \cite{asofed} and FedSa \cite{fedsa}. FedBuff \cite{fedbuff, fedbuff2} utilizes a buffered asychronous aggregation approach which attempts to improve on secure aggregation protocols. The server selects a fraction of clients and aggregates them securely before updating. SAFA \cite{safa} uses a different approach in which a threshold of finished clients must be met before aggregation proceeds. PORT \citep{fed_async1} introduces another asynchronous update method which tries to balance between the staleness and minimum finished client threshold approaches by forcing stale clients to report their weights for aggregation after a threshold is met. Finally, a semi-sychronous federated learning paradigm has been explored in \cite{semi}.
 
-\section{Serverless federated learning with \texttt{FlwrP2P}}
+\section{Serverless federated learning with \texttt{flwr-serverless}}
 
 The \texttt{Flwr} package \cite{flower} has recently been developed to allow support for running federated learning on edge devices. In the Flower paper, the authors describe its design goals which are to be scalable, client-agnostic, communication-agnostic, privacy agnostic, and flexible. Flower provides an easy to use package in which many standard machine learning frameworks (\texttt{TensorFlow}, \texttt{PyTorch}, \texttt{Scikit-learn} etc.) can be made into a federated client by wrapping a \texttt{fit} function. Despite these advantages, to date Flower does not offer support for asynchronous federated learning. Furthermore, we encountered a number of difficulties managing multiple servers running in containers on cloud platforms that were launched for each experiment we performed (healthcare setting).
 
-Here we introduce and provide an overview of \texttt{FlwrP2P}, our solution to expanding Flower's capabilities to include asynchronous federated learning. We sought to develop the package with the following design principles in mind:
+Here we introduce and provide an overview of \texttt{flwr-serverless}, our solution to expanding Flower's capabilities to include asynchronous federated learning. We sought to develop the package with the following design principles in mind:
 
 \begin{itemize}
     \item \textbf{Minimal modification}: We aim to retain the basic design goals and principles of the Flower package with minimal modification to its functionality or existing code and without interfering with its core design.
@@ -231,7 +232,7 @@ Here we introduce and provide an overview of \texttt{FlwrP2P}, our solution to e
 \begin{figure}
     \centering
     \includegraphics{graphics/flower_async_detail.pdf}
-    \caption{A detailed view of the asynchronous federated learning design in \texttt{FlwrP2P} showing two clients interacting with the weight store. In \ding{172}, Client A begins its first epoch. Upon completion, in \ding{173} it transfers its weights to the weight store. In \ding{174} the client downloads any available weights and aggregates them locally with its own weights according to a federated aggregation strategy. Client B follows a similar structure but in \ding{175} we see that it takes longer to train one epoch. Therefore, a different set of weights may be available for aggregation than Client A depending on the other clients that have deposited their weights in the weight store. With many clients connecting, the weight store will contain a "running average" of the global weights proportional to the fastest clients that have finished epochs.}
+    \caption{A detailed view of the asynchronous federated learning design in \texttt{flwr-serverless} showing two clients interacting with the weight store. In \ding{172}, Client A begins its first epoch. Upon completion, in \ding{173} it transfers its weights to the weight store. In \ding{174} the client downloads any available weights and aggregates them locally with its own weights according to a federated aggregation strategy. Client B follows a similar structure but in \ding{175} we see that it takes longer to train one epoch. Therefore, a different set of weights may be available for aggregation than Client A depending on the other clients that have deposited their weights in the weight store. With many clients connecting, the weight store will contain a "running average" of the global weights proportional to the fastest clients that have finished epochs.}
     \label{fig:async-detail}
 \end{figure}
 
@@ -239,7 +240,7 @@ In a typical synchronous federated learning experiment, each client runs for a n
 
 An interesting side effect of this kind of implementation is that each client may implement its own aggregation strategy. This opens up a number of new federating training possibilities and allow further customization, especially for the stragglers who may average weights less frequently due to fewer connections to the shared folder. Furthermore this setup also implies that there is no "federated round". There are only local training rounds on each client with continuous weight updates between epochs if available. 
 
-To run `FlwrP2P`, the user is expected to specify the following for each client:
+To run `flwr-serverless`, the user is expected to specify the following for each client:
 
 \begin{itemize}
     \item The intended federated aggregation strategy to be used by the client.
@@ -327,30 +328,88 @@ Note that we also provide the functionality to use synchronous federated learnin
 
 We designed a series of experiments to study the effect of several factors on the quality of the model and the training time. The factors include:
 
-- whether the strategy is synchronous or asynchronous
-- the federated learning strategy
-- the number of federated nodes
-- the disparity between the federated datasets on different nodes.
+\begin{itemize}
+    \item the type the strategy: synchronous or asynchronous,
+    \item the federated learning strategy, e.g FedAvg
+    \item the number of federated nodes, and
+    \item the disparity between the federated datasets on different nodes.
+\end{itemize}
 
 The experiments are performed in several datasets and machine learning tasks: MNIST digital classification, CIFAR-10 image classification, and a language model training task.
 
-\subsection{Experiments on MNIST}
+\subsection{MNIST}
 
 We run two experiments on the MNIST dataset. The first compares synchronous vs asynchronous learning on different data distributions. The second experiment compares different federated learning strategies on different numbers of nodes (2, 3, and 5). 
 
-The model architecture for all MNIST experiments is kept the same. It consists of a convolutional layer followed by a max pooling layer and  another convolutional layer. Both convolutional layers use a ReLU activation function. We use a batch size of 32 and run 64 steps per epoch.
+The model architecture for all MNIST experiments is kept the same. It consists of two convolutional layers with max pooling and ReLU activation. We use a batch size of 32 and run 64 steps per epoch.
 
 
 \subsubsection{Synchronous vs Asynchronous}
 
-Here are our findings about the effect of synchronous vs. asynchronous strategies:
+Below are our findings about the effect of synchronous vs. asynchronous strategies:
 
-- Accuracy stays roughly the same.
-- Asynchronous can be 2~3 times faster than synchronous (for 2 federated nodes).
-- Partition skewness has a large impact on the accuracy of the federated model. Heavy skew causes 15\% of accuracy drop. And asynchronous suffers slightly higher drop.
+\begin{itemize}
+    \item Accuracy is roughly the same.
+    \item Asynchronous can be 3~4 times faster than synchronous (for 2 federated nodes).
+    \item Partition disparity has a large impact on the accuracy of the federated model. Full disparity causes 15\% of accuracy drop. And asynchronous suffers slightly higher drop.
+\end{itemize}
 
-Table 4.1.1 shows the validation accuracy at 10, 100, and 500 epochs as well as the seconds per epoch for six different configurations. Three different data distributions were tested: random, skewed, and partitioned. Random is a simple random split of the data across the 2 nodes. For the partitioned split, each node gets a subset of the labels, digits 0-4 for node 1 and digits 5-9 for node 2 in this case. The “skewed split” attempts to model a more realistic skewed data, where the training data for each node consists of the same labels, but in different distributions. For a skewed split of MNIST, 95\% of each node’s training data is of the same 5 labels, while the remaining 5\% is for the other 5 labels.
 
+Table 1 shows the validation accuracy at 10 and 500 epochs as well as time spent per epoch for six different configurations. Three different data disparity settings were tested: random (no disparity), partial disparity and full disparity (no label overlap). Random partition is a simple random split of the data across the 2 nodes. For the full disparity partition, each node gets a subset of the labels, digits 0-4 for node 1 and digits 5-9 for node 2 in this case. The partial disparity attempts to model a more realistic skewed data, where the training data for each node consists of a different mixture the same labels. For node 1, 95\% of examples are digits 0-4, while the remaining 5\% are digits 5-9. Node 2 has the opposite mixture.
+
+
+\begin{table}[H]
+\begin{center}
+    
+
+\begin{tabular}{c|c|c|c}
+     & disparity & val acc & time/epoch \\
+    \hline
+   sync & 0 & 0.987 & 2.24s \\
+   async & 0 & 0.988 & 0.56s \\
+   \hline
+   sync & 0.95 & 0.973 & 2.36s \\
+   async & 0.95 & 0.969 & 0.56s \\
+   \hline
+   sync & 1 & 0.854 & 2.27s \\
+   async & 1 & 0.828 & 0.64s
+\end{tabular}
+\caption{Accuracy and speed: comparing synchronous and asynchronous strategies.}
+\label{tab:mnist1}
+\end{center}
+\end{table}
+
+\subsubsection{Federated strategy and the number of nodes}
+
+For our second MNIST experiment, we compare how async federated learning performs using different federated learning strategies, numbers of nodes, and disparity. 
+
+Like the previous experiment, we see that data disparity hurts accuracy. However, it is interesting to note that even with a disparity of 99\%, the model vastly outperformed the full disparity partitioning in the previous experiment. In all cases, the difference in accuracy between federated strategies was fairly small and inconsistent. The best strategy for 2 nodes is not necessarily the best strategy for 3 or 5 nodes.
+
+Additionally, we can see that validation accuracy decreases with an increase in nodes. This drop off in validation accuracy is most significant with higher disparity.
+
+
+\begin{table}[H]
+\begin{center}
+
+\begin{tabular}{c|c|c|c|c}
+     & disparity & 2 nodes & 3 nodes & 5 nodes \\
+    \hline
+   FedAvg & 0.9 &  0.947 & 0.937 & 0.928 \\
+   FedAvgM & 0.9  & 0.948 & 0.940 & 0.927 \\
+   FedAdam & 0.9  & 0.940 & 0.942 & 0.928 \\
+   \hline
+   FedAvg & 0.95 &  0.925 & 0.905 & 0.894 \\
+   FedAvgM & 0.95 &  0.927 & 0.903 & 0.897 \\
+   FedAdam & 0.95 &  0.906 & 0.908 & 0.902 \\
+   \hline
+   FedAvg & 0.99 &  0.815 & 0.780 & 0.766 \\
+   FedAvgM & 0.99 &  0.820 & 0.783 & 0.742 \\
+   FedAdam & 0.99 &  0.780 & 0.791 & 0.766
+\end{tabular}
+\caption{Accuracy: comparing federated strategies with different disparity settings and different number of nodes.}
+\label{tab:mnist1}
+\end{center}
+\end{table}
 
 %%%%%%%%%%%% Supplementary Methods %%%%%%%%%%%%
 %\footnotesize
