@@ -158,6 +158,9 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 if self.config.test_steps is not None:
                     x_test = self.x_test[: self.config.test_steps * self.config.batch_size]
                     y_test = self.y_test[: self.config.test_steps * self.config.batch_size]
+                else:
+                    x_test = self.x_test
+                    y_test = self.y_test
                 future = ex.submit(
                     model_federated[i_node].fit,
                     x=train_loaders[i_node],
@@ -187,9 +190,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
             x_test = self.x_test
             y_test = self.y_test
         else:
-            if self.test_steps is not None:
-                x_test = self.x_test[: self.test_steps * self.batch_size, ...]
-                y_test = self.y_test[: self.test_steps * self.batch_size, ...]
+            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
 
         callbacks_per_client = [
             FlwrFederatedCallback(
@@ -226,9 +228,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
             x_test = self.x_test
             y_test = self.y_test
         else:
-            if self.test_steps is not None:
-                x_test = self.x_test[: self.test_steps * self.batch_size, ...]
-                y_test = self.y_test[: self.test_steps * self.batch_size, ...]
+            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
         for i_node in execution_sequence:
             print("Training node", i_node)
             model_federated[i_node].fit(
