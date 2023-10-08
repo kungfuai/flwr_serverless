@@ -1,5 +1,6 @@
 from tensorflow import keras
 import keras_cv
+from keras_cv.models import ResNet18Backbone, ImageClassifier
 
 
 class ResNetModelBuilder:
@@ -20,26 +21,20 @@ class ResNetModelBuilder:
         self.include_rescaling = include_rescaling
 
     def run(self):
-        if self.net in ["ResNet50"]:
-            fn = getattr(keras_cv.models, self.net)
-            backbone = fn(
-                include_rescaling=self.include_rescaling,
-                include_top=False,
-                weights=self.weights,
-                classes=self.num_classes,
-                input_shape=self.input_shape,
+        if self.net == "ResNet18":
+            backbone = ResNet50V2Backbone()
+            backbone.layers[2].strides = (1, 1)
+            # print(backbone.layers[2].get_config())
+            model = ImageClassifier(
+                backbone=backbone,
+                num_classes=num_classes,
             )
-            x = keras.layers.Input(shape=self.input_shape)
-            y = backbone(x)
-            y = keras.layers.GlobalAveragePooling2D()(y)
-            y = keras.layers.Dense(self.num_classes, activation="softmax")(y)
-            model = keras.Model(x, y)
-            # model = keras.applications.resnet50.ResNet50(
-            #     include_top=True,
-            #     weights=self.weights,
-            #     classes=self.num_classes,
-            #     input_shape=(None, None, 3),
-            # )
+        elif self.net == "ResNet50":
+            backbone = keras_cv.models.ResNet50V2Backbone()
+            model = ImageClassifier(
+                backbone=backbone,
+                num_classes=num_classes,
+            )
         else:
             fn = getattr(keras_cv.models, self.net)
             model = fn(

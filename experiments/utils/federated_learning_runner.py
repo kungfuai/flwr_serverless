@@ -136,8 +136,6 @@ class FederatedLearningRunner(BaseExperimentRunner):
         callbacks_per_client = [
             FlwrFederatedCallback(
                 nodes[i],
-                # x_test=self.x_test,
-                # y_test=self.y_test,
                 num_examples_per_epoch=self.steps_per_epoch * self.batch_size,
             )
             for i in range(num_partitions)
@@ -157,8 +155,9 @@ class FederatedLearningRunner(BaseExperimentRunner):
                     callbacks.append(CustomWandbCallback(i_node))
 
                 # assert self.test_steps is None
-                x_test = self.x_test[: self.config.test_steps * self.config.batch_size]
-                y_test = self.y_test[: self.config.test_steps * self.config.batch_size]
+                if self.config.test_steps is not None:
+                    x_test = self.x_test[: self.config.test_steps * self.config.batch_size]
+                    y_test = self.y_test[: self.config.test_steps * self.config.batch_size]
                 future = ex.submit(
                     model_federated[i_node].fit,
                     x=train_loaders[i_node],
@@ -188,8 +187,9 @@ class FederatedLearningRunner(BaseExperimentRunner):
             x_test = self.x_test
             y_test = self.y_test
         else:
-            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
-            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
+            if self.test_steps is not None:
+                x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+                y_test = self.y_test[: self.test_steps * self.batch_size, ...]
 
         callbacks_per_client = [
             FlwrFederatedCallback(
@@ -226,8 +226,9 @@ class FederatedLearningRunner(BaseExperimentRunner):
             x_test = self.x_test
             y_test = self.y_test
         else:
-            x_test = self.x_test[: self.test_steps * self.batch_size, ...]
-            y_test = self.y_test[: self.test_steps * self.batch_size, ...]
+            if self.test_steps is not None:
+                x_test = self.x_test[: self.test_steps * self.batch_size, ...]
+                y_test = self.y_test[: self.test_steps * self.batch_size, ...]
         for i_node in execution_sequence:
             print("Training node", i_node)
             model_federated[i_node].fit(
