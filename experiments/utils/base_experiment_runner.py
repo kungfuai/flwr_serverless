@@ -13,6 +13,7 @@ class Config:
     strategy: str
     project: str = "experiments"
     track: bool = False
+    random_seed: int = 0
 
     # shared config parameters
     use_async: bool = True

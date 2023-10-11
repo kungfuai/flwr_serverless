@@ -10,6 +10,9 @@ from experiments.utils.federated_learning_runner import FederatedLearningRunner
 if __name__ == "__main__":
     # starts a new run
     from argparse import ArgumentParser
+    from dotenv import load_dotenv
+
+    load_dotenv()
 
     parser = ArgumentParser(
         description="Run federated learning experiments on CIFAR10."
@@ -18,18 +21,18 @@ if __name__ == "__main__":
     # base config
     base_config = {
         "project": "mnist",
-        "epochs": 20,
+        "epochs": 3,
         "batch_size": 32,
-        "steps_per_epoch": 200,
+        "steps_per_epoch": 1200,
         "lr": 0.001,
         "num_nodes": 2,
         "use_async": False,
         "federated_type": "concurrent",
         "dataset": "mnist",
         "strategy": "fedavg",
-        "data_split": "random",
-        "skew_factor": 0.9,
-        "test_steps": 50,
+        "data_split": "skewed",
+        "skew_factor": 0,
+        "test_steps": None,
         "net": "simple",
         "track": False,
     }
@@ -48,42 +51,21 @@ if __name__ == "__main__":
         # Treatments
         config_overides = [
             {
-                "use_async": True,
-            },
-            {
-                "use_async": True,
-                "data_split": "skewed",
-                "skew_factor": 0.9,
-            },
-            {
-                "use_async": True,
-                "data_split": "skewed",
-                "skew_factor": 0.5,
-            },
-            {
-                "use_async": True,
-                "data_split": "skewed",
-                "skew_factor": 0.1,
-            },
-            {
-                "use_async": True,
-                "num_nodes": 3,
-            },
-            {
-                "use_async": True,
-                "num_nodes": 5,
-            },
-            {
-                "use_async": True,
-                "data_split": "partitioned",
-            },
-            {
-                "use_async": False,
-            },
-            # TODO: add more sync variants
+                "random_seed": random_seed,
+                "use_async": user_async,
+                "skew_factor": skew_factor,
+                "num_nodes": num_nodes,
+                "strategy": strategy,
+            }
+            for random_seed in range(3)
+            for user_async in [True, False]
+            for skew_factor in [0, 0.1, 0.5, 0.9, 0.99, 1]
+            for num_nodes in [2, 3, 5]
+            for strategy in ["fedavg", "fedavgm", "fedadam"]
         ]
-        for c in config_overides:
-            c["track"] = True
+        config_overides += [
+            {"random_seed": random_seed, "use_async": True} for random_seed in range(3)
+        ]
     else:
         config_overide = {}
         for key, value in vars(args).items():
@@ -95,7 +77,7 @@ if __name__ == "__main__":
         print(
             f"\n***** Starting trial {i + 1} of {len(config_overides)} with config: {str(config)[:80]}...\n"
         )
-        set_random_seed(0)
+        assert config["track"] == False
         federated_learning_runner = FederatedLearningRunner(
             config=config,
             tracking=config["track"],

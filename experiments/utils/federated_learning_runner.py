@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from typing import List, Any
 from tensorflow import keras
+from tensorflow.keras.utils import set_random_seed
 from wandb.keras import WandbCallback
 
 from flwr.common import ndarrays_to_parameters
@@ -40,6 +41,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
 
     def run(self):
         config: Config = self.config
+        set_random_seed(config.random_seed)
+
         if config.track:
             import wandb
 
@@ -151,13 +154,17 @@ class FederatedLearningRunner(BaseExperimentRunner):
                 callbacks = [
                     callbacks_per_client[i_node],
                 ]
-                if self.tracking:
+                if self.config.track:
                     callbacks.append(CustomWandbCallback(i_node))
 
                 # assert self.test_steps is None
                 if self.config.test_steps is not None:
-                    x_test = self.x_test[: self.config.test_steps * self.config.batch_size]
-                    y_test = self.y_test[: self.config.test_steps * self.config.batch_size]
+                    x_test = self.x_test[
+                        : self.config.test_steps * self.config.batch_size
+                    ]
+                    y_test = self.y_test[
+                        : self.config.test_steps * self.config.batch_size
+                    ]
                 else:
                     x_test = self.x_test
                     y_test = self.y_test
@@ -278,14 +285,14 @@ class FederatedLearningRunner(BaseExperimentRunner):
             self.get_train_dataloader_for_node(i) for i in range(num_partitions)
         ]
 
-        if self.tracking:
+        if self.config.track:
             wandb_callbacks = [WandbCallback() for i in range(num_partitions)]
         for i_round in range(num_federated_rounds):
             print("\n============ Round", i_round)
             callbacks = [
                 callbacks_per_client[i_partition],
             ]
-            if self.tracking:
+            if self.config.track:
                 callbacks.append(wandb_callbacks[i_partition])
             for i_partition in range(num_partitions):
                 model_federated[i_partition].fit(
