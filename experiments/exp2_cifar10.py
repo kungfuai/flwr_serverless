@@ -57,7 +57,7 @@ if __name__ == "__main__":
                 "random_seed": random_seed,
                 "num_nodes": 1,
             }
-            for random_seed in range(1, 4)
+            for random_seed in [None, None]  # range(1, 3)
         ]
         config_overides += [
             {
@@ -67,10 +67,10 @@ if __name__ == "__main__":
                 "num_nodes": num_nodes,
                 "strategy": strategy,
             }
-            for random_seed in range(1, 4)
+            for random_seed in [None, None]
             for user_async in [False, True]
             for skew_factor in [
-                # 0,
+                0,
                 # 0.1,
                 # 0.5,
                 0.9,

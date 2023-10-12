@@ -41,7 +41,8 @@ class FederatedLearningRunner(BaseExperimentRunner):
 
     def run(self):
         config: Config = self.config
-        set_random_seed(config.random_seed)
+        if config.random_seed is not None:
+            set_random_seed(config.random_seed)
 
         if config.track:
             import wandb
