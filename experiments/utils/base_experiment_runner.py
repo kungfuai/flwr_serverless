@@ -69,6 +69,11 @@ class BaseExperimentRunner:
                 ResNetModelBuilder(lr=self.lr, net="ResNet50", weights="imagenet").run()
                 for _ in range(self.num_nodes)
             ]
+        elif self.net == "resnet18":
+            return [
+                ResNetModelBuilder(lr=self.lr, net="ResNet18").run()
+                for _ in range(self.num_nodes)
+            ]
 
     def get_original_data(self):
         dataset = self.dataset

@@ -3,6 +3,7 @@ import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 from tensorflow.keras.utils import set_random_seed
+from subprocess import check_output
 from experiments.utils.federated_learning_runner import FederatedLearningRunner
 
 
@@ -10,6 +11,9 @@ from experiments.utils.federated_learning_runner import FederatedLearningRunner
 if __name__ == "__main__":
     # starts a new run
     from argparse import ArgumentParser
+    from dotenv import load_dotenv
+
+    load_dotenv()
 
     parser = ArgumentParser(
         description="Run federated learning experiments on CIFAR10."
@@ -18,19 +22,20 @@ if __name__ == "__main__":
     # base config
     base_config = {
         "project": "cifar10",
-        "epochs": 50,
-        "batch_size": 32,
-        "steps_per_epoch": 200,
-        "lr": 0.001,
+        "epochs": 20,
+        "batch_size": 128,
+        "steps_per_epoch": 1200,
+        "lr": 0.0005,
         "num_nodes": 2,
-        "use_async": False,
+        "use_async": True,
         "federated_type": "concurrent",
         "dataset": "cifar10",
         "strategy": "fedavg",
-        "data_split": "random",
+        "data_split": "skewed",
         "skew_factor": 0.9,
-        "test_steps": 50,
-        "net": "resnet50",
+        "test_steps": None,  # 50,
+        "net": "resnet18",
+        "random_seed": 0,
         "track": False,
     }
     for key, value in base_config.items():
@@ -46,44 +51,40 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.use_default_configs:
         # Treatments
+        # add single node
         config_overides = [
-            # TODO: add more sync variants
             {
-                "use_async": False,
-            },
-            {
-                "use_async": True,
-            },
-            {
-                "use_async": True,
-                "data_split": "skewed",
-                "skew_factor": 0.9,
-            },
-            {
-                "use_async": True,
-                "data_split": "skewed",
-                "skew_factor": 0.5,
-            },
-            {
-                "use_async": True,
-                "data_split": "skewed",
-                "skew_factor": 0.1,
-            },
-            {
-                "use_async": True,
-                "num_nodes": 3,
-            },
-            {
-                "use_async": True,
-                "num_nodes": 5,
-            },
-            {
-                "use_async": True,
-                "data_split": "partitioned",
-            },
+                "random_seed": random_seed,
+                "num_nodes": 1,
+            }
+            for random_seed in range(1, 4)
         ]
-        for c in config_overides:
-            c["track"] = True
+        config_overides += [
+            {
+                "random_seed": random_seed,
+                "use_async": user_async,
+                "skew_factor": skew_factor,
+                "num_nodes": num_nodes,
+                "strategy": strategy,
+            }
+            for random_seed in range(1, 4)
+            for user_async in [False, True]
+            for skew_factor in [
+                # 0,
+                # 0.1,
+                # 0.5,
+                0.9,
+                0.99,
+                1,
+            ]
+            for num_nodes in [2, 3, 5]
+            for strategy in [
+                "fedavg",
+                "fedavgm",
+                "fedadam",
+            ]
+        ]
+
     else:
         config_overide = {}
         for key, value in vars(args).items():
@@ -91,13 +92,25 @@ if __name__ == "__main__":
         config_overides = [config_overide]
 
     for i, config_overide in enumerate(config_overides):
+        config_overide["track"] = args.track
         config = {**base_config, **config_overide}
         print(
             f"\n***** Starting trial {i + 1} of {len(config_overides)} with config: {str(config)[:80]}...\n"
         )
-        set_random_seed(0)
-        federated_learning_runner = FederatedLearningRunner(
-            config=config,
-            tracking=config["track"],
-        )
-        federated_learning_runner.run()
+        if args.use_default_configs:
+            # use subprocess to run this script
+            command = "python -m experiments.exp2_cifar10"
+            for key, value in config_overide.items():
+                if isinstance(value, bool):
+                    if value:
+                        command += f" --{key}"
+                else:
+                    command += f" --{key} {value}"
+            print(command)
+            # wait for the command to finish, stream to stdout
+            check_output(command, shell=True)
+        else:
+            federated_learning_runner = FederatedLearningRunner(
+                config=config,
+            )
+            federated_learning_runner.run()

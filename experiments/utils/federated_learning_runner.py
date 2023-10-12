@@ -104,7 +104,7 @@ class FederatedLearningRunner(BaseExperimentRunner):
         # elif self.strategy_name == "fedadagrad":
         #     self.strategy = FedAdagrad()
         else:
-            raise ValueError("Strategy not supported")
+            raise ValueError(f"Strategy not supported: {self.strategy_name}")
 
     def split_data(self):
         config: Config = self.config

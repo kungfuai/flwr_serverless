@@ -22,18 +22,15 @@ class ResNetModelBuilder:
 
     def run(self):
         if self.net == "ResNet18":
-            backbone = ResNet50V2Backbone()
+            backbone = ResNet18Backbone()
             backbone.layers[2].strides = (1, 1)
             # print(backbone.layers[2].get_config())
-            model = ImageClassifier(
-                backbone=backbone,
-                num_classes=num_classes,
-            )
+            model = ImageClassifier(backbone=backbone, num_classes=self.num_classes)
         elif self.net == "ResNet50":
             backbone = keras_cv.models.ResNet50V2Backbone()
             model = ImageClassifier(
                 backbone=backbone,
-                num_classes=num_classes,
+                num_classes=self.num_classes,
             )
         else:
             fn = getattr(keras_cv.models, self.net)
