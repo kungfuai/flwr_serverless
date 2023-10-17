@@ -27,7 +27,7 @@ if __name__ == "__main__":
         "steps_per_epoch": 1200,
         "lr": 0.0005,
         "num_nodes": 2,
-        "use_async": True,
+        "use_async": False,
         "federated_type": "concurrent",
         "dataset": "cifar10",
         "strategy": "fedavg",
@@ -53,11 +53,11 @@ if __name__ == "__main__":
         # Treatments
         # add single node
         config_overides = [
-            {
-                "random_seed": random_seed,
-                "num_nodes": 1,
-            }
-            for random_seed in [None, None]  # range(1, 3)
+            # {
+            #     "random_seed": random_seed,
+            #     "num_nodes": 1,
+            # }
+            # for random_seed in [None, None]  # range(1, 3)
         ]
         config_overides += [
             {
@@ -67,21 +67,21 @@ if __name__ == "__main__":
                 "num_nodes": num_nodes,
                 "strategy": strategy,
             }
-            for random_seed in [None, None]
-            for user_async in [False, True]
+            for random_seed in [100, 101]
+            for user_async in [False]
             for skew_factor in [
-                0,
+                # 0,
                 # 0.1,
                 # 0.5,
+                # 0.99,
+                # 1,
                 0.9,
-                0.99,
-                1,
             ]
-            for num_nodes in [2, 3, 5]
+            for num_nodes in [3, 5, 2]
             for strategy in [
                 "fedavg",
                 "fedavgm",
-                "fedadam",
+                # "fedadam",
             ]
         ]
 

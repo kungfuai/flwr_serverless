@@ -27,6 +27,30 @@ def get_run_group(
     return run_group
 
 
+def get_run_group_for_wikitext(
+    runs,
+    is_async: bool = False,
+    num_nodes: int = 2,
+    strategy: str = "fedavg",
+    model_name="EleutherAI/pythia-14M",
+):
+    run_group = []
+    for run in runs:
+        # print(
+        #     f"run config: {run.config['use_async']}, {run.config['num_nodes']}, {run.config.get('strategy', 'fedavg')}"
+        # )
+        # print(f"accuracy: {run.summary.get('eval_accuracy')}")
+        if (
+            run.config["use_async"] == is_async
+            and run.config["num_nodes"] == num_nodes
+            and run.config.get("strategy", "fedavg") == strategy
+            and run.config["model_name"] == model_name
+        ):
+            if "eval_accuracy" in run.summary and run.summary["eval_accuracy"] > 0:
+                run_group.append(run)
+    return run_group
+
+
 def get_mean_std(run_group, metric="test_accuracy"):
     metric_values = []
     for run in run_group:
@@ -112,6 +136,52 @@ def get_exp1_2_tables(wandb_project: str = "mnist"):
     print(latex_table)
 
 
+def get_exp3_tables(wandb_project="wikitext"):
+    # list runs
+    api = wandb.Api()
+    wandb_entity = os.getenv("WANDB_ENTITY")
+    runs = api.runs(
+        path=f"{wandb_entity}/{wandb_project}",
+        # successful only
+        filters={
+            "state": "finished",
+        },
+    )
+
+    def f(is_async, skew_factor, num_nodes, strategy):
+        run_group = get_run_group_for_wikitext(
+            runs,
+            is_async=is_async,
+            num_nodes=num_nodes,
+            strategy=strategy,
+        )
+        print(
+            f"found {len(run_group)} runs for {strategy}, {num_nodes} nodes, async {is_async}"
+        )
+        mean, std = get_mean_std(run_group, metric="eval_accuracy")
+        ci95 = 1.96 * std / np.sqrt(len(run_group))
+        ci95 = round(ci95, 3)
+        return f"{mean} $\\pm$ {ci95}".replace("0.", ".")
+
+    d = 0
+    # compare num_nodes, sync vs async
+    latex_table = (
+        """
+    \\toprule
+    & \\multicolumn{2}{c}{Number of Nodes} \\\\
+    Strategy & 2 & 3 & 5  \\\\
+    \\midrule
+    """
+        + f"""
+    FedAvg & {f(False, d, 2, "fedavg")} & {f(False, d, 3, "fedavg")} & {f(False, d, 5, "fedavg")} \\\\
+    FedAvg (async) & {f(True, d, 2, "fedavg")} & {f(True, d, 3, "fedavg")} & {f(True, d, 5, "fedavg")} \\\\
+    \\bottomrule
+    """
+    )
+    print(latex_table)
+
+
 if __name__ == "__main__":
-    get_exp1_2_tables("mnist")
-    # get_exp1_2_tables("cifar10")
+    # get_exp1_2_tables("mnist")
+    get_exp1_2_tables("cifar10")
+    # get_exp3_tables("wikitext")
