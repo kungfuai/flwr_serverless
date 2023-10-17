@@ -29,6 +29,7 @@ class SyncFederatedNode:
         self.model_store = shared_folder
         self.seen_models = set()
         self.num_nodes = num_nodes
+        assert self.num_nodes is not None, "num_nodes must be specified"
 
     def _aggregate(self, aggregatables: List[Aggregatable]) -> Aggregatable:
         # Aggregation using the flwr strategy.
@@ -89,15 +90,19 @@ class SyncFederatedNode:
     def _get_parameters_from_other_nodes(self, epoch: int) -> List[Aggregatable]:
         other_parameters_from_epoch = []
 
-        # with open("logs/model_store.txt", "a") as f:
+        # For debugging
+        # with open("model_store.txt", "a") as f:
         #     f.write(f"Current model_store for {self.node_id} on epoch {epoch}:\n")
-        #     for key, value in self.model_store.items():
+        #     for j, (key, value) in enumerate(self.model_store.items()):
         #         f.write(
-        #             f"key: {key}, epoch: {value['epoch']}, node_id: {self.node_id}\n"
+        #             f"[{j}] key: {key}, epoch: {value['epoch']}, node_id: {self.node_id}\n"
         #         )
 
         for key, value in self.model_store.items():
+            # TODO: `value`` includes model parameters. Separate
+            #   model parameters and metadata.
             if not isinstance(value, dict):
+                print("model store item not a dict, skipping")
                 continue
             if "epoch" not in value:
                 raise KeyError(f"epoch not in the dictionary: {value.keys()}")
@@ -121,12 +126,17 @@ class SyncFederatedNode:
             num_examples=num_examples,
             metrics=metrics,
         )
+        if not isinstance(epoch, int):
+            print(f"Warning! epoch {epoch} is not an int, rounding to nearest int")
+            # epoch = int(epoch + 0.5)
+            raise ValueError(f"epoch {epoch} is not an int")
         self.model_store[model_hash] = dict(
             aggregatable=self_aggregatable,
             model_hash=model_hash,
             epoch=epoch,
             node_id=self.node_id,
         )
+        print(f"Added local model to model_store: {model_hash}")
         # if len(self.model_store) > self.num_nodes:
         #     raise ValueError(
         #         f"Too many nodes in the federated learning run: {len(self.model_store)}. Expected {self.num_nodes}"
