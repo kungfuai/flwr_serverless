@@ -102,7 +102,7 @@ class SyncFederatedNode:
             # TODO: `value`` includes model parameters. Separate
             #   model parameters and metadata.
             if not isinstance(value, dict):
-                print("model store item not a dict, skipping")
+                # print("model store item not a dict, skipping")
                 continue
             if "epoch" not in value:
                 raise KeyError(f"epoch not in the dictionary: {value.keys()}")
