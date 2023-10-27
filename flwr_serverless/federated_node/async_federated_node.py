@@ -7,6 +7,7 @@ from flwr.common import (
     FitRes,
     Parameters,
     Status,
+    parameters_to_ndarrays,
 )
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import Strategy
@@ -189,6 +190,7 @@ class AsyncFederatedNode:
                 self_aggregatable
             ] + aggregatables_from_other_nodes
             updated_aggregatable = self._aggregate(parameters_from_all_nodes)
+
             # It is counter-productive to set self.model_store[node_id] to the aggregated parameters.
             # It makes the accuracy worse.
             # self.model_store[self.node_id] = dict(
@@ -199,4 +201,28 @@ class AsyncFederatedNode:
             # TODO: fill in aggregated_metrics
             aggregated_parameters = updated_aggregatable.parameters
             aggregated_metrics = updated_aggregatable.metrics
+
+            # print the weight delta
+            self._print_weight_delta(
+                previous_weights=local_parameters,
+                new_weights=aggregated_parameters,
+            )
+
             return aggregated_parameters, aggregated_metrics
+
+    def _print_weight_delta(
+        self, previous_weights: Parameters, new_weights: Parameters
+    ) -> float:
+        if previous_weights is None:
+            return
+        # convert to numpy
+        previous_weights_np = parameters_to_ndarrays(previous_weights)
+        new_weights_np = parameters_to_ndarrays(new_weights)
+        delta = 0
+        count = 0
+        for w1, w2 in zip(previous_weights_np, new_weights_np):
+            delta += float(abs(w1 - w2).sum())
+            count += w1.size
+        avg_l1_diff = delta / float(count)
+        LOGGER.info(f"    Weight delta (average absolute difference): {avg_l1_diff}")
+        return avg_l1_diff
