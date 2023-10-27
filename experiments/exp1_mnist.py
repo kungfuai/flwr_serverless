@@ -59,20 +59,20 @@ if __name__ == "__main__":
                 "num_nodes": num_nodes,
                 "strategy": strategy,
             }
-            for random_seed in range(3, 5)
-            for user_async in [False]  # [True, False]
+            for random_seed in range(3)
+            for user_async in [True, False]
             for skew_factor in [
-                # 0,
+                0,
                 # 0.1,
                 # 0.5,
                 # 0.9,
                 0.99,
-                # 1,
+                1,
             ]
-            for num_nodes in [2]  # [2, 3, 5]
+            for num_nodes in [2, 3, 5]
             for strategy in [
                 "fedavg",
-                # "fedadam",
+                "fedadam",
                 # "fedavgm",
             ]
         ]

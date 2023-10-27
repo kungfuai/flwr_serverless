@@ -1,9 +1,11 @@
 A Flower ([flwr](https://flower.dev/)) extension for serverless federated learning.
 
+Technical report (arXiv): [Serverless Federated Learning with `flwr-serverless`](https://arxiv.org/abs/2310.15329).
+
 ## Install
 
 ```
-pip install flwr_serverless
+pip install flwr-serverless
 
 or
 
@@ -52,6 +54,11 @@ To make it easier to experimemt with different strategies, we provide utility cl
 To reproduce some experiments reported in the paper, run
 
 ```
-python -m experiments.experiment_scripts.exp1_mnist_async_fedavg
+python -m experiments.experiment_scripts.exp1_mnist
 python -m experiments.experiment_scripts.exp2_cifar10
+python -m experiments.experiment_scripts.exp3_wikitext
 ```
+
+Each of the above experiments run through a grid search over a large hyperparameter space,
+with repeated trials using different random seeds. Please edit the script to adjust
+the number of trials and the hyperparameter search space.
