@@ -11,6 +11,10 @@ class InMemoryFolder:
     def __setitem__(self, key, value):
         self.model_store[key] = value
 
+    def __delitem__(self, key):
+        if key in self.model_store:
+            del self.model_store[key]
+
     def __len__(self):
         return len(self.model_store)
 

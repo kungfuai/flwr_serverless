@@ -63,6 +63,11 @@ class LocalFolderWithBytes:
         # recursive
         return len(list(self.directory.glob("*")))
 
+    def __delitem__(self, key):
+        filepath = self.directory / key
+        if filepath.exists():
+            filepath.unlink()
+
     def items(self):
         for filepath in self.directory.glob("*"):
             # remove the directory name
@@ -107,6 +112,11 @@ class LocalFolder:
         with open(filepath, "wb") as f:
             pickle.dump(value, f)
         self._put_success_flag(key)
+
+    def __delitem__(self, key):
+        filepath = self.directory / (key + self.suffix)
+        if filepath.exists():
+            filepath.unlink()
 
     def _get_success_flag_file(self, key):
         return self.directory / ("success_" + key)

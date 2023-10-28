@@ -89,6 +89,9 @@ class SyncFederatedNode:
         return aggregated_metrics
 
     def _get_parameters_from_other_nodes(self, epoch: int) -> List[Aggregatable]:
+        print(
+            f"To get parameters from other nodes. Current node is {self.node_id}. Epoch {epoch}."
+        )
         other_parameters_from_epoch = []
 
         # For debugging
@@ -99,6 +102,7 @@ class SyncFederatedNode:
         #             f"[{j}] key: {key}, epoch: {value['epoch']}, node_id: {self.node_id}\n"
         #         )
 
+        keys_to_delete = []
         for key, value in self.model_store.items():
             # TODO: `value`` includes model parameters. Separate
             #   model parameters and metadata.
@@ -107,10 +111,25 @@ class SyncFederatedNode:
                 continue
             if "epoch" not in value:
                 raise KeyError(f"epoch not in the dictionary: {value.keys()}")
+            if value["node_id"] == self.node_id and value["epoch"] < epoch - 1:
+                # stale checkpoint from self, delete
+                keys_to_delete.append(key)
+
             if value["epoch"] != epoch or value["node_id"] == self.node_id:
                 continue
             other_parameters_from_epoch.append(value["aggregatable"])
 
+        for key in keys_to_delete:
+            del self.model_store[key]
+
+        # print("Model store:")
+        # for kk, v in self.model_store.items():
+        #     if "epoch" in v:
+        #         print(f"model hash: {kk}, node_id: {v['node_id']}, epoch: {v['epoch']}")
+
+        LOGGER.info(
+            f"Got {len(other_parameters_from_epoch)} model checkpoints from other nodes."
+        )
         return other_parameters_from_epoch
 
     def update_parameters(
@@ -174,7 +193,6 @@ class SyncFederatedNode:
         self._print_weight_delta(
             local_parameters, aggregated_parameters_and_metrics.parameters
         )
-        # self.model_store["latest_federated"] = aggregated_parameters
         return (
             aggregated_parameters_and_metrics.parameters,
             aggregated_parameters_and_metrics.metrics,

@@ -148,21 +148,31 @@ class FederatedLearningTestRun:
         strategy = self.strategy
         storage_backend = self.storage_backend
         if self.use_async_node:
-            nodes = [
-                AsyncFederatedNode(shared_folder=storage_backend, strategy=strategy)
-                for _ in range(self.num_nodes)
-            ]
-        else:
-            nodes = [
-                SyncFederatedNode(
-                    shared_folder=storage_backend,
-                    strategy=strategy,
-                    num_nodes=self.num_nodes,
+            nodes = []
+            for _ in range(self.num_nodes):
+                if isinstance(storage_backend, LocalFolder):
+                    # duplicate
+                    storage_backend = LocalFolder(directory=storage_backend.directory)
+                nodes.append(
+                    AsyncFederatedNode(shared_folder=storage_backend, strategy=strategy)
                 )
-                for _ in range(self.num_nodes)
-            ]
+        else:
+            nodes = []
+            for _ in range(self.num_nodes):
+                if isinstance(storage_backend, LocalFolder):
+                    # duplicate
+                    storage_backend = LocalFolder(directory=storage_backend.directory)
+                nodes.append(
+                    SyncFederatedNode(
+                        shared_folder=storage_backend,
+                        strategy=strategy,
+                        num_nodes=self.num_nodes,
+                    )
+                )
 
         self.nodes = nodes
+        for i, node in enumerate(nodes):
+            print(f"node {i}: folder {node.model_store}")
         num_partitions = self.num_nodes
         model_federated = [self.model_builder_fn() for _ in range(num_partitions)]
         callbacks_per_client = [

@@ -315,8 +315,10 @@ def test_mnist_federated_callback_2nodes():
     assert accuracy_federated[0] > 1.0 / len(accuracy_standalone) + 0.05
 
 
-def test_mnist_federated_callback_2nodes_synchronously():
+def test_mnist_federated_callback_2nodes_synchronously(tmpdir):
     epochs = 8
+    local_shared_folder = InMemoryFolder()
+    # local_shared_folder = LocalFolder(directory=str(tmpdir.join("fed_test")))
     session = FederatedLearningTestRun(
         num_nodes=2,
         epochs=epochs,
@@ -326,6 +328,7 @@ def test_mnist_federated_callback_2nodes_synchronously():
         train_concurrently=True,
         use_async_node=False,
         save_model_before_aggregation=True,
+        storage_backend=local_shared_folder,
     )
     accuracy_standalone, accuracy_federated = session.run()
     for i in range(len(accuracy_standalone)):
