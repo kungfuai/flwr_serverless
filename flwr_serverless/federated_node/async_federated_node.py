@@ -203,6 +203,9 @@ class AsyncFederatedNode:
             aggregated_metrics = updated_aggregatable.metrics
 
             # print the weight delta
+            LOGGER.info(
+                f"Finished weight aggregation for epoch {epoch} at node {self.node_id}"
+            )
             self._print_weight_delta(
                 previous_weights=local_parameters,
                 new_weights=aggregated_parameters,

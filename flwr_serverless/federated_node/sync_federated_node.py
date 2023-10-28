@@ -168,6 +168,9 @@ class SyncFederatedNode:
         parameters_from_all_nodes = aggregatables_from_other_nodes + [self_aggregatable]
         aggregated_parameters_and_metrics = self._aggregate(parameters_from_all_nodes)
         # Print weight delta
+        LOGGER.info(
+            f"Finished weight aggregation for epoch {epoch} at node {self.node_id}"
+        )
         self._print_weight_delta(
             local_parameters, aggregated_parameters_and_metrics.parameters
         )
