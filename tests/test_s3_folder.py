@@ -2,6 +2,7 @@
 Use moto to mock S3
 """
 from pytest import raises
+from unittest.mock import patch
 import boto3
 from moto import mock_s3
 from flwr_serverless.shared_folder.s3_folder import (
@@ -24,6 +25,22 @@ def test_s3_bytes_folder_read_write_delete():
         folder[key] = b"dummy"
         assert folder[key] == b"dummy"
         del folder[key]
+
+
+def test_s3_folder_get_raw_folder_should_not_call_check():
+    
+    with mock_s3():
+        s3 = boto3.client("s3")
+        s3.create_bucket(Bucket="test_bucket")
+        folder = S3FolderWithPickle(
+            "test_bucket/test_folder",
+            retry_sleep_time=0.1,
+            max_retry=10,
+        )
+        def raise_if_called():
+            raise Exception("Should not be called")
+        with patch.object(folder, "_check", raise_if_called):
+            folder.get_raw_folder()
 
 
 def test_s3_pickle_folder_read_write_delete():

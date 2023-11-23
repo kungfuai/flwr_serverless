@@ -31,7 +31,8 @@ class S3FolderWithBytes:
 
     def _check(self):
         # read and write a dummy file
-        key = "dummy"
+        timestamp_ms = int(time.time() * 1000)
+        key = f"dummy_{timestamp_ms}"
         self[key] = b"dummy"
         assert self[key] == b"dummy"
         del self[key]
@@ -144,7 +145,8 @@ class S3FolderWithPickle:
 
     def _check(self):
         # read and write a dummy file
-        key = "dummy"
+        timestamp_ms = int(time.time() * 1000)
+        key = f"dummy_{timestamp_ms}"
         self[key] = "dummy"
         assert self[key] == "dummy"
         del self[key]
@@ -163,6 +165,7 @@ class S3FolderWithPickle:
             self.directory,
             retry_sleep_time=self.retry_sleep_time,
             max_retry=self.max_retry,
+            check_at_init=False,
         )
 
     def get(self, key, default=None):
