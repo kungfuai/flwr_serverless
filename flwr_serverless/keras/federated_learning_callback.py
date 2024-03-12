@@ -113,6 +113,13 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
             )
             self._save_model_to_shared_folder(filename)
 
+    def _save_model_after_aggregation(self, node_id, epoch):
+        if self.save_model_after_aggregation:
+            filename = self.model_after_aggregation_filename_pattern.format(
+                node_id=node_id, epoch=epoch
+            )
+            self._save_model_to_shared_folder(filename)
+            
     def on_epoch_end(self, epoch: int, logs=None):
         # use the P2PStrategy to update the model.
         node_id = self.node.node_id
@@ -144,12 +151,7 @@ class FlwrFederatedCallback(keras.callbacks.Callback):
         # Update the keras model and keras logs.
         if updated_params is not None:
             self.model.set_weights(parameters_to_ndarrays(updated_params))
-            if self.save_model_before_aggregation:
-                node_id = self.node.node_id
-                filename = self.model_before_aggregation_filename_pattern.format(
-                    node_id=node_id, epoch=epoch
-                )
-                self._save_model_to_shared_folder(filename)
+            self._save_model_after_aggregation(node_id, epoch)
             if updated_metrics is not None:
                 if self.override_metrics_with_aggregated_metrics:
                     logs.update(updated_metrics)
